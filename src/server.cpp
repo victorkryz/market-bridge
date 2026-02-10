@@ -7,7 +7,7 @@ Server::Server(unsigned short port) : acceptor_(io_, asio::ip::tcp::endpoint(tcp
 
 void Server::run()
 {
-    gl_logger->trace("Server running ...");
+    gl_logger->info("Server running ...");
 
     do_accept();
 
@@ -27,7 +27,7 @@ void Server::do_accept()
         {
             if (check_ec(ec, __func__ ))
             {
-                gl_logger->trace("Server accepted connection");
+                gl_logger->info("Server accepted connection");
 
                 auto session = std::make_shared<HTTPSession>(io_, std::move(socket));
                 session->start();

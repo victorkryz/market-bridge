@@ -63,7 +63,7 @@ std::shared_ptr<spdlog::logger> init_logger(LoggerType logger_type,
         fsys::path log_sub_folder(sub_folder_name);
         fsys::path relative_log_file_path = log_sub_folder / fsys::path(log_file_name);
 
-        logger = spdlog::daily_logger_st(app_name, relative_log_file_path);
+        logger = spdlog::daily_logger_mt("logger_1", relative_log_file_path);
     }
     else
     {
@@ -72,6 +72,7 @@ std::shared_ptr<spdlog::logger> init_logger(LoggerType logger_type,
 
     spdlog::set_pattern("[%H:%M:%S] %v");
     logger->set_level(logging_level);
+    logger->flush_on(logging_level);
 
     return logger;
 }
@@ -97,7 +98,7 @@ bool process_arguments(int argc, char* argv[], ClArguments& args)
         if (parsed_args.count("help"))
         {
             usage = true;
-            result = true;
+            result = false;
         }
         else
         {

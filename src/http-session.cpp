@@ -20,7 +20,7 @@ HTTPSession::~HTTPSession() { gl_logger->trace("HTTPSession destructed"); }
 
 void HTTPSession::start()
 {
-    gl_logger->trace("HTTPSession started ...");
+    gl_logger->info("HTTPSession started ...");
 
     obtain_header();
 }
