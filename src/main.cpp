@@ -134,6 +134,8 @@ void show_usage(const cxxopts::Options& options)
         fmt::format(samples_of_using_templ, fmt::arg("app_name", app_name));
 
     std::string help = options.help();
-    std::cout << std::endl << help << std::endl;
-    std::cout << samples_of_using << std::endl << std::endl;
+    std::cout << std::endl
+              << help << std::endl;
+    std::cout << samples_of_using << std::endl
+              << std::endl;
 }

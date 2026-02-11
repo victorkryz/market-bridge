@@ -1,14 +1,14 @@
 #pragma once
 
-#include <asio/io_context.hpp>
+#include "common/ec-handler.h"
+#include "utils/http-helper.h"
 #include <asio.hpp>
 #include <asio/any_io_executor.hpp>
+#include <asio/io_context.hpp>
 #include <asio/ssl.hpp>
 #include <iostream>
 #include <sstream>
 #include <string>
-#include "common/ec-handler.h"
-#include "utils/http-helper.h"
 
 using asio::ip::tcp;
 
@@ -42,7 +42,6 @@ class HTTPSession : public std::enable_shared_from_this<HTTPSession>
     protected:
         void on_connect();
 
-    
     private:
         bool init_ssl();
         void connect(const tcp::resolver::results_type& endpoints);
@@ -73,7 +72,7 @@ protected:
     }
     void on_request(HttpRequest request);
     void on_outgoing_session_completed(const asio::error_code& ec, std::string response);
-    
+
 private:
     void obtain_header();
 

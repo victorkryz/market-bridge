@@ -68,7 +68,7 @@ void HTTPSession::on_outgoing_session_completed(const asio::error_code& ec, std:
     asio::async_write(
         socket_, buff,
         asio::bind_executor(strand_,
-                            [this, self](const asio::error_code& ec, std::size_t) 
+                            [this, self](const asio::error_code& ec, std::size_t)
                             {
                                 asio::error_code ec_formal;
                                 auto rc = socket_.shutdown(tcp::socket::shutdown_both, ec_formal);
@@ -77,10 +77,10 @@ void HTTPSession::on_outgoing_session_completed(const asio::error_code& ec, std:
 
 void HTTPSession::OutgoingSession::start()
 {
-    if ( !init_ssl() )
+    if (!init_ssl())
     {
-       gl_logger->error("SSL initialization failure!");
-       return;
+        gl_logger->error("SSL initialization failure!");
+        return;
     }
 
     gl_logger->info("OutgoingSession started");
@@ -198,7 +198,7 @@ bool HTTPSession::OutgoingSession::init_ssl()
     stream_.set_verify_callback(asio::ssl::host_name_verification(HOST));
 
     // SNI (many hosts require it)
-    bool result  = SSL_set_tlsext_host_name(stream_.native_handle(), HOST.c_str());
+    bool result = SSL_set_tlsext_host_name(stream_.native_handle(), HOST.c_str());
     if (!result)
     {
         gl_logger->error("Failed to set SNI host name {}", HOST);

@@ -14,4 +14,3 @@ inline bool check_ec(const asio::error_code& ec, std::string_view context) noexc
         gl_logger->error("{}: {} code: {}", context, ec.message(), ec.value());
     return result;
 }
-    
