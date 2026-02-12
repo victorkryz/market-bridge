@@ -22,17 +22,25 @@ struct ClArguments
     spdlog::level::level_enum log_level = spdlog::level::level_enum::info; // default log level
 };
 
-bool process_arguments(int argc, char* argv[], ClArguments& args);
+std::pair<int, bool> process_arguments(int argc, char* argv[], ClArguments& args);
 void show_usage(const cxxopts::Options& options);
 
 int main(int argc, char* argv[])
 {
+    int result(0);
     try
     {
         ClArguments args;
 
-        if (argc > 1 && !process_arguments(argc, argv, args))
-            return 1;
+        if (argc > 1)
+        {
+            const auto [exit_code, usage_requested] =
+                process_arguments(argc, argv, args);
+            if (exit_code != 0)
+                return exit_code;
+            else if (usage_requested)
+                return 0;
+        }
 
         gl_logger = init_logger(LoggerType::File, args.log_level);
 
@@ -42,7 +50,9 @@ int main(int argc, char* argv[])
     catch (const std::exception& e)
     {
         std::cerr << "Error: " << e.what() << std::endl;
+        result = 1;
     }
+    return result;
 }
 
 std::shared_ptr<spdlog::logger> init_logger(LoggerType logger_type,
@@ -77,46 +87,38 @@ std::shared_ptr<spdlog::logger> init_logger(LoggerType logger_type,
     return logger;
 }
 
-bool process_arguments(int argc, char* argv[], ClArguments& args)
+// returns pair: error code, usage requested indicator
+std::pair<int, bool> process_arguments(int argc, char* argv[], ClArguments& args)
 {
-    bool result(false), usage(false), version(false);
+    bool usage(false), version(false);
+    std::pair<int, bool> result = {0, false};
 
     try
     {
-        cxxopts::Options options(app_name, "binance proxy server");
+        cxxopts::Options options(app_name, "Binance proxy server");
         options.positional_help("[optional args]").show_positional_help();
 
         std::string log_level(SPDLOG_LEVEL_NAME_INFO.data(), SPDLOG_LEVEL_NAME_INFO.size());
 
-        options.add_options()("p, port", "specify port (default 8080)",
+        options.add_options()("p, port", "specify port (default: 8080)",
                               cxxopts::value<decltype(args.port)>(args.port))(
-            "l, log_level", "specify log level (error, warning, trace, debug, critical, off)",
+            "l, log_level", "specify log level (error, warning, trace, debug, critical, off) (default: info)",
             cxxopts::value<std::string>(log_level))("h, help", "print usage");
 
         auto parsed_args = options.parse(argc, argv);
 
         if (parsed_args.count("help"))
-        {
-            usage = true;
-            result = false;
-        }
-        else
-        {
-            result = true;
-            if (!log_level.empty())
-            {
-                result = true;
-                args.log_level = spdlog::level::from_str(log_level);
-            }
-        }
+            result.second = true;
+        else if (!log_level.empty())
+            args.log_level = spdlog::level::from_str(log_level);
 
-        if (usage || !result)
+        if (result.second)
             show_usage(options);
     }
     catch (const cxxopts::exceptions::exception& e)
     {
         std::cout << "command line arguments parsing error: " << e.what() << std::endl;
-        result = false;
+        result.first = 1;
     }
 
     return result;
