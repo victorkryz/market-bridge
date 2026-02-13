@@ -16,7 +16,10 @@ HTTPSession::HTTPSession(asio::io_context& io, tcp::socket&& socket)
     gl_logger->trace("HTTPSession constructed");
 }
 
-HTTPSession::~HTTPSession() { gl_logger->trace("HTTPSession destructed"); }
+HTTPSession::~HTTPSession()
+{
+    gl_logger->trace("HTTPSession destructed");
+}
 
 void HTTPSession::start()
 {

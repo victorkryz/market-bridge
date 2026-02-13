@@ -3,9 +3,10 @@
 #include "http-session.h"
 #include "logs/logger.h"
 
-Server::Server(unsigned short port) : acceptor_(io_, asio::ip::tcp::endpoint(tcp::v4(), port)) {}
+Server::Server(unsigned short port, ServerRunningMode running_mode) : running_mode_(running_mode),
+                                                                      acceptor_(io_, asio::ip::tcp::endpoint(tcp::v4(), port)) {}
 
-void Server::run()
+int Server::run()
 {
     gl_logger->info("Server running ...");
 
@@ -19,6 +20,10 @@ void Server::run()
 
     for (auto& th : threads)
         th.join();
+
+    gl_logger->info("Server finished");
+
+    return 0;
 }
 
 void Server::do_accept()
@@ -33,6 +38,8 @@ void Server::do_accept()
                 auto session = std::make_shared<HTTPSession>(io_, std::move(socket));
                 session->start();
             }
-            do_accept();
+
+            if (running_mode_ == ServerRunningMode::Persistent)
+                do_accept();
         });
 }

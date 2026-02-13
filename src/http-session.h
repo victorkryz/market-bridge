@@ -35,7 +35,7 @@ class HTTPSession : public std::enable_shared_from_this<HTTPSession>
               resolver_(context_.io), stream_(context_.io, context_.tls_context) {}
         ~OutgoingSession()
         {
-            gl_logger->info("OutgoingSession destructed ...");
+            gl_logger->trace("OutgoingSession destructed ...");
         }
         void start();
 
