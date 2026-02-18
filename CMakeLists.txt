@@ -1,12 +1,11 @@
 cmake_minimum_required(VERSION 3.16)
 
 set(app market-bridge)
-project(${app})
+project(${app} LANGUAGES CXX)
 
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
-
 
 include(FetchContent)
 
@@ -89,4 +88,7 @@ target_link_libraries(${app} PRIVATE asio
 target_compile_definitions(${app} PRIVATE
                             APP_NAME="${app}"
                             APP_VERSION="1.0.0"
-)
+                            DEFAULT_HTTP_PORT=8080)
+
+
+add_subdirectory(tests)
