@@ -4,6 +4,7 @@ IndentWidth: 4
 TabWidth: 4
 ColumnLimit: 0
 Standard: c++17
+SortIncludes: false
 
 BreakBeforeBraces: Allman
 BraceWrapping:
