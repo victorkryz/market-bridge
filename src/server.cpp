@@ -35,7 +35,8 @@ void Server::do_accept()
             {
                 gl_logger->info("Server accepted connection");
 
-                auto session = std::make_shared<HTTPSession>(io_, std::move(socket));
+                auto session = std::make_shared<HTTPSession>(io_, std::move(socket), 
+                                                generate_session_id());
                 session->start();
             }
 
