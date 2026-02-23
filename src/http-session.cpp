@@ -6,24 +6,25 @@
 
 #include "logs/logger.h"
 
-HTTPSession::HTTPSession(asio::io_context& io, tcp::socket&& socket)
+HTTPSession::HTTPSession(asio::io_context& io, tcp::socket&& socket, uint64_t id)
     : io_(io), socket_(std::move(socket)), strand_(asio::make_strand(socket_.get_executor())),
-      tls_context_(asio::ssl::context::tls_client)
+      tls_context_(asio::ssl::context::tls_client),
+      id_(id)
 {
     // Use system CA certificates (Linux/macOS typically OK)
     tls_context_.set_default_verify_paths();
 
-    gl_logger->trace("HTTPSession constructed");
+    gl_logger->trace("HTTPSession constructed, id: {}", id_);
 }
 
 HTTPSession::~HTTPSession()
 {
-    gl_logger->trace("HTTPSession destructed");
+    gl_logger->trace("HTTPSession destructed, id: {}", id_);
 }
 
 void HTTPSession::start()
 {
-    gl_logger->info("HTTPSession started ...");
+    gl_logger->info("HTTPSession started, id: {} ...", id_);
 
     obtain_header();
 }
@@ -60,7 +61,7 @@ void HTTPSession::on_request(HttpRequest request)
 
 void HTTPSession::on_outgoing_session_completed(const asio::error_code& ec, std::string response)
 {
-    gl_logger->info("OutgoingSession completed");
+    gl_logger->info("OutgoingSession completed, id: {}", id_);
     gl_logger->trace("Response {}", response);
 
     response_ = std::move(response);
@@ -78,6 +79,12 @@ void HTTPSession::on_outgoing_session_completed(const asio::error_code& ec, std:
                             }));
 };
 
+
+HTTPSession::OutgoingSession::~OutgoingSession()
+{
+    gl_logger->trace("OutgoingSession destructed id: {}...", context_.session_id);
+}
+
 void HTTPSession::OutgoingSession::start()
 {
     if (!init_ssl())
@@ -86,7 +93,7 @@ void HTTPSession::OutgoingSession::start()
         return;
     }
 
-    gl_logger->info("OutgoingSession started");
+    gl_logger->info("OutgoingSession started, id: {}", context_.session_id);
 
     auto self = shared_from_this();
 
@@ -120,7 +127,7 @@ void HTTPSession::OutgoingSession::connect(const tcp::resolver::results_type& en
 
 void HTTPSession::OutgoingSession::on_connect()
 {
-    gl_logger->info("OutgoingSession connected");
+    gl_logger->info("OutgoingSession connected, id: {}", context_.session_id);
 
     auto self = shared_from_this();
 

@@ -22,6 +22,7 @@ class HTTPSession : public std::enable_shared_from_this<HTTPSession>
         asio::strand<asio::any_io_executor>& strand;
         asio::ssl::context& tls_context;
         const HttpRequest& request;
+        const uint64_t& session_id;
     };
 
     class OutgoingSession : public std::enable_shared_from_this<OutgoingSession>
@@ -33,10 +34,7 @@ class HTTPSession : public std::enable_shared_from_this<HTTPSession>
         OutgoingSession(std::shared_ptr<HTTPSession> outer_session)
             : outer_session_(outer_session), context_(outer_session->get_context()),
               resolver_(context_.io), stream_(context_.io, context_.tls_context) {}
-        ~OutgoingSession()
-        {
-            gl_logger->trace("OutgoingSession destructed ...");
-        }
+        ~OutgoingSession();
         void start();
 
     protected:
@@ -60,15 +58,19 @@ class HTTPSession : public std::enable_shared_from_this<HTTPSession>
     };
 
 public:
-    HTTPSession(asio::io_context& io_, asio::ip::tcp::socket&& socket);
+    HTTPSession(asio::io_context& io_, asio::ip::tcp::socket&& socket, uint64_t id);
     ~HTTPSession();
 
     void start();
+    uint64_t get_id()
+    {
+        return id_;
+    }
 
 protected:
     Context get_context()
     {
-        return {io_, strand_, tls_context_, request_};
+        return {io_, strand_, tls_context_, request_, id_};
     }
     void on_request(HttpRequest request);
     void on_outgoing_session_completed(const asio::error_code& ec, std::string response);
@@ -86,4 +88,5 @@ private:
     std::size_t content_length_ = 0;
     asio::ssl::context tls_context_;
     std::string response_;
+    uint64_t id_{0};
 };
