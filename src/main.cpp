@@ -67,7 +67,7 @@ std::shared_ptr<spdlog::logger> init_logger(LoggerType logger_type,
         fsys::path log_sub_folder(sub_folder_name);
         fsys::path relative_log_file_path = log_sub_folder / fsys::path(log_file_name);
 
-        logger = spdlog::daily_logger_mt("logger_1", relative_log_file_path);
+        logger = spdlog::daily_logger_mt("logger_1", relative_log_file_path.string());
     }
     else
     {
