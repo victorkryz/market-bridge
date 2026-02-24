@@ -11,8 +11,14 @@ HTTPSession::HTTPSession(asio::io_context& io, tcp::socket&& socket, uint64_t id
       tls_context_(asio::ssl::context::tls_client),
       id_(id)
 {
-    // Use system CA certificates (Linux/macOS typically OK)
-    tls_context_.set_default_verify_paths();
+    #ifdef _WIN32
+        tls_context_.set_verify_mode(asio::ssl::verify_peer);
+        tls_context_.load_verify_file("certs\\cacert.pem");
+    #else
+        // Use system CA certificates (Linux/macOS typically OK)
+        tls_context_.set_default_verify_paths();
+    #endif
+
 
     gl_logger->trace("HTTPSession constructed, id: {}", id_);
 }

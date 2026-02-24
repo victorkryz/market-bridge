@@ -25,7 +25,9 @@ target_compile_definitions(${test_module} PRIVATE
   APP_VERSION="1.0.0"
   DEFAULT_HTTP_PORT=8080)
 
-target_compile_options(${test_module} PRIVATE -Wno-write-strings)
+if(UNIX)
+  target_compile_options(${test_module} PRIVATE -Wno-write-strings)
+endif()
 
 target_include_directories(${test_module} PRIVATE "${PROJECT_SOURCE_DIR}/src")
 
