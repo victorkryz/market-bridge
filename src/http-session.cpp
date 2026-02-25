@@ -11,14 +11,6 @@ HTTPSession::HTTPSession(asio::io_context& io, tcp::socket&& socket, uint64_t id
       tls_context_(asio::ssl::context::tls_client),
       id_(id)
 {
-    #ifdef _WIN32
-        tls_context_.set_verify_mode(asio::ssl::verify_peer);
-        tls_context_.load_verify_file("certs\\cacert.pem");
-    #else
-        // Use system CA certificates (Linux/macOS typically OK)
-        tls_context_.set_default_verify_paths();
-    #endif
-
 
     gl_logger->trace("HTTPSession constructed, id: {}", id_);
 }
@@ -32,7 +24,40 @@ void HTTPSession::start()
 {
     gl_logger->info("HTTPSession started, id: {} ...", id_);
 
+    if ( !init_tls_context() )
+    {
+        gl_logger->info("HTTPSession failed, id: {} ...", id_);
+        return;
+    }
+
     obtain_header();
+}
+
+bool HTTPSession::init_tls_context()
+{
+    bool result(true);
+    std::string failure_hints;
+
+    try
+    {
+        #ifdef _WIN32
+            const std::string cert_path = "certs\\cacert.pem";
+            failure_hints = fmt::format("(possibly SSL certificate not found ({})", cert_path);
+
+            tls_context_.set_verify_mode(asio::ssl::verify_peer);
+            tls_context_.load_verify_file(cert_path);
+        #else
+            // Use system CA certificates (Linux/macOS typically OK)
+            tls_context_.set_default_verify_paths();
+        #endif
+    }
+    catch(const std::exception& e)
+    {
+        gl_logger->error("TLS initialization failure {} {}", e.what(), failure_hints);
+        result = false;
+    }
+
+    return result;
 }
 
 void HTTPSession::obtain_header()

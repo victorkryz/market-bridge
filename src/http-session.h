@@ -76,6 +76,7 @@ protected:
     void on_outgoing_session_completed(const asio::error_code& ec, std::string response);
 
 private:
+    bool init_tls_context();
     void obtain_header();
 
 private:
