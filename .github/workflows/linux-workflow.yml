@@ -12,6 +12,7 @@ on:
 env:
   BUILD_TYPE: Release
   BUILD_DIRECTORY: build
+  INSTALL_DIRECTORY: dist
   APP_NAME: market-bridge
 
 jobs:
@@ -36,7 +37,10 @@ jobs:
       working-directory: ${{github.workspace}}/${{env.BUILD_DIRECTORY}}/tests
       run: ctest -V
 
+    - name: Install
+      run: cmake --install ${{github.workspace}}/${{env.BUILD_DIRECTORY}} --prefix ${{github.workspace}}/${{env.INSTALL_DIRECTORY}}
+
     - name: Run ${{env.APP_NAME}}
-      working-directory: ${{github.workspace}}/${{env.BUILD_DIRECTORY}}
-      run: ./${{env.APP_NAME}} --help
+      working-directory: ${{github.workspace}}/${{env.INSTALL_DIRECTORY}}
+      run: bin/${{env.APP_NAME}} --help
       
