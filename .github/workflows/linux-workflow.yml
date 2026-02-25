@@ -1,5 +1,5 @@
 
-name: Linux, build
+name: Linux, build and test
 
 on:
   workflow_dispatch:
