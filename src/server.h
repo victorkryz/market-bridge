@@ -3,7 +3,19 @@
 #include <asio.hpp>
 #include <asio/io_context.hpp>
 #include <asio/ip/tcp.hpp>
+
+#include <asio/co_spawn.hpp>
+#include <asio/detached.hpp>
+#include <asio/use_awaitable.hpp>
+
 #include <atomic>
+
+
+using asio::use_awaitable;
+using asio::awaitable;
+namespace this_coro = asio::this_coro;
+
+
 
 enum class ServerRunningMode
 {
@@ -26,6 +38,8 @@ public:
 
 private:
     void do_accept();
+
+    awaitable<void> listener();
 
     ServerRunningMode running_mode_;
     asio::io_context io_;

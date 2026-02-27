@@ -11,14 +11,13 @@ HTTPSession::HTTPSession(asio::io_context& io, tcp::socket&& socket, uint64_t id
       tls_context_(asio::ssl::context::tls_client),
       id_(id)
 {
-    #ifdef _WIN32
-        tls_context_.set_verify_mode(asio::ssl::verify_peer);
-        tls_context_.load_verify_file("certs\\cacert.pem");
-    #else
-        // Use system CA certificates (Linux/macOS typically OK)
-        tls_context_.set_default_verify_paths();
-    #endif
-
+#ifdef _WIN32
+    tls_context_.set_verify_mode(asio::ssl::verify_peer);
+    tls_context_.load_verify_file("certs\\cacert.pem");
+#else
+    // Use system CA certificates (Linux/macOS typically OK)
+    tls_context_.set_default_verify_paths();
+#endif
 
     gl_logger->trace("HTTPSession constructed, id: {}", id_);
 }
@@ -32,28 +31,24 @@ void HTTPSession::start()
 {
     gl_logger->info("HTTPSession started, id: {} ...", id_);
 
-    obtain_header();
+    asio::co_spawn(strand_, obtain_header(), asio::detached);
 }
 
-void HTTPSession::obtain_header()
+awaitable<void> HTTPSession::obtain_header()
 {
     std::shared_ptr<HTTPSession> self = shared_from_this();
 
-    asio::async_read_until(
-        socket_, buffer_, http_request_headers_delimiter,
-        asio::bind_executor(strand_,
-                            [this, self](const asio::error_code& ec, std::size_t bytes_transferred)
-                            {
-                                if (check_ec(ec, __func__))
-                                {
-                                    std::istream stream(&buffer_);
-                                    raw_request_.resize(bytes_transferred);
-                                    stream.read(&raw_request_[0], bytes_transferred);
+    auto [ec, bytes_transferred] =
+        co_await asio::async_read_until(socket_, buffer_,
+                                        http_request_headers_delimiter, asio::as_tuple(use_awaitable));
+    if (!check_ec(ec, __func__))
+        co_return;
 
-                                    HttpRequest request = parse_request(raw_request_);
-                                    on_request(request);
-                                }
-                            }));
+    std::istream stream(&buffer_);
+    raw_request_.resize(bytes_transferred);
+    stream.read(&raw_request_[0], bytes_transferred);
+    HttpRequest request = parse_request(raw_request_);
+    on_request(request);
 }
 
 void HTTPSession::on_request(HttpRequest request)
@@ -62,10 +57,10 @@ void HTTPSession::on_request(HttpRequest request)
     std::shared_ptr<HTTPSession> self = shared_from_this();
 
     auto outgoing_session = std::make_shared<HTTPSession::OutgoingSession>(self);
-    outgoing_session->start();
+    asio::co_spawn(strand_, outgoing_session->start(), asio::detached);
 }
 
-void HTTPSession::on_outgoing_session_completed(const asio::error_code& ec, std::string response)
+awaitable<void> HTTPSession::on_outgoing_session_completed(const asio::error_code& ec_in, std::string response)
 {
     gl_logger->info("OutgoingSession completed, id: {}", id_);
     gl_logger->trace("Response {}", response);
@@ -75,60 +70,50 @@ void HTTPSession::on_outgoing_session_completed(const asio::error_code& ec, std:
     auto self = shared_from_this();
 
     auto buff = asio::buffer(response_);
-    asio::async_write(
-        socket_, buff,
-        asio::bind_executor(strand_,
-                            [this, self](const asio::error_code& ec, std::size_t)
-                            {
-                                asio::error_code ec_formal;
-                                auto rc = socket_.shutdown(tcp::socket::shutdown_both, ec_formal);
-                            }));
-};
+    auto [ec, _] = co_await asio::async_write(socket_, buff,
+                                              asio::as_tuple(use_awaitable));
 
+    asio::error_code ec_formal;
+    auto rc = socket_.shutdown(tcp::socket::shutdown_both, ec_formal);
+    check_ec(rc, __func__);
+};
 
 HTTPSession::OutgoingSession::~OutgoingSession()
 {
     gl_logger->trace("OutgoingSession destructed id: {}...", context_.session_id);
 }
 
-void HTTPSession::OutgoingSession::start()
+awaitable<void> HTTPSession::OutgoingSession::start()
 {
     if (!init_ssl())
     {
         gl_logger->error("SSL initialization failure!");
-        return;
+        co_return;
     }
 
     gl_logger->info("OutgoingSession started, id: {}", context_.session_id);
 
     auto self = shared_from_this();
 
-    resolver_.async_resolve(HOST, PORT,
-                            asio::bind_executor(context_.strand,
-                                                [this, self](const asio::error_code& ec,
-                                                             tcp::resolver::results_type results)
-                                                {
-                                                    if (check_ec(ec, __func__))
-                                                    {
-                                                        connect(results);
-                                                    }
-                                                }));
+    auto [ec, results] =
+        co_await resolver_.async_resolve(HOST, PORT, asio::as_tuple(use_awaitable));
+    if (check_ec(ec, __func__))
+    {
+        asio::co_spawn(context_.strand, connect(results), asio::detached);
+    }
 }
 
-void HTTPSession::OutgoingSession::connect(const tcp::resolver::results_type& endpoints)
+awaitable<void> HTTPSession::OutgoingSession::connect(const tcp::resolver::results_type& endpoints)
 {
     auto self = shared_from_this();
 
-    asio::async_connect(
-        stream_.next_layer(), endpoints,
-        asio::bind_executor(context_.strand,
-                            [this, self](const asio::error_code& ec, const tcp::endpoint&)
-                            {
-                                if (check_ec(ec, __func__))
-                                {
-                                    on_connect();
-                                }
-                            }));
+    auto [ec, _] =
+        co_await asio::async_connect(stream_.next_layer(), endpoints, asio::as_tuple(use_awaitable));
+
+    if (check_ec(ec, __func__))
+    {
+        on_connect();
+    }
 };
 
 void HTTPSession::OutgoingSession::on_connect()
@@ -143,49 +128,45 @@ void HTTPSession::OutgoingSession::on_connect()
                                                 {
                                                     if (check_ec(ec, __func__))
                                                     {
-                                                        send_request();
+                                                        asio::co_spawn(context_.strand, send_request(), asio::detached);
                                                     }
                                                 }));
 }
 
-void HTTPSession::OutgoingSession::send_request()
+awaitable<void> HTTPSession::OutgoingSession::send_request()
 {
     auto self = shared_from_this();
 
     generate_request();
 
-    asio::async_write(stream_, asio::buffer(http_request_),
-                      asio::bind_executor(context_.strand,
-                                          [this, self](const asio::error_code& ec, std::size_t)
-                                          {
-                                              if (check_ec(ec, __func__))
-                                              {
-                                                  read_response();
-                                              }
-                                          }));
+    auto [ec, _] =
+        co_await asio::async_write(stream_, asio::buffer(http_request_), asio::as_tuple(use_awaitable));
+
+    if (check_ec(ec, __func__))
+    {
+        asio::co_spawn(context_.strand, read_response(), asio::detached);
+    }
 }
 
-void HTTPSession::OutgoingSession::read_response()
+awaitable<void> HTTPSession::OutgoingSession::read_response()
 {
     auto self = shared_from_this();
 
-    stream_.async_read_some(
-        asio::buffer(buffer_),
-        asio::bind_executor(
-            context_.strand,
-            [this, self](const asio::error_code& ec, std::size_t n)
-            {
-                if (is_eof(ec))
-                {
-                    std::string resp(response_.str());
-                    outer_session_->on_outgoing_session_completed(ec, std::move(resp));
-                }
-                else if (check_ec(ec, __func__))
-                {
-                    response_.write(buffer_.data(), static_cast<std::streamsize>(n));
-                    read_response(); // continue reading
-                }
-            }));
+    auto [ec, n] =
+        co_await stream_.async_read_some(asio::buffer(buffer_), asio::as_tuple(use_awaitable));
+
+    if (is_eof(ec))
+    {
+        std::string resp(response_.str());
+        asio::co_spawn(context_.strand,
+                       outer_session_->on_outgoing_session_completed(ec, std::move(resp)),
+                       asio::detached);
+    }
+    else if (check_ec(ec, __func__))
+    {
+        response_.write(buffer_.data(), static_cast<std::streamsize>(n));
+        asio::co_spawn(context_.strand, read_response(), asio::detached); // continue reading
+    }
 }
 
 void HTTPSession::OutgoingSession::generate_request()

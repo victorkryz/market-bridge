@@ -3,7 +3,7 @@ cmake_minimum_required(VERSION 3.16)
 set(app market-bridge)
 project(${app} LANGUAGES CXX)
 
-set(CMAKE_CXX_STANDARD 17)
+set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 
@@ -74,7 +74,7 @@ find_package(OpenSSL REQUIRED)
 
 file(GLOB SRC_FILES RELATIVE ${CMAKE_CURRENT_SOURCE_DIR} src/*.cpp src/*.h src/*.hpp src/*.c)
 
-add_executable(${app} ${SRC_FILES})
+add_executable(${app} ${SRC_FILES}) 
 
 target_include_directories(${app} PRIVATE
     ${PROJECT_SOURCE_DIR}/src)

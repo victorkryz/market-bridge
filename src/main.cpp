@@ -83,7 +83,7 @@ std::shared_ptr<spdlog::logger> init_logger(LoggerType logger_type,
 
 void show_usage(const cxxopts::Options& options)
 {
-    const char* samples_of_using_templ =
+    constexpr const char* samples_of_using_templ =
         R"(Command line samples:
     {app_name}
     {app_name} -p 8080

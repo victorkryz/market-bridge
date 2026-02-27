@@ -10,7 +10,7 @@ int Server::run()
 {
     gl_logger->info("Server running ...");
 
-    do_accept();
+    asio::co_spawn(io_, listener(), asio::detached);
 
     std::vector<std::thread> threads;
 
@@ -26,21 +26,23 @@ int Server::run()
     return 0;
 }
 
-void Server::do_accept()
+awaitable<void> Server::listener()
 {
-    acceptor_.async_accept(
-        [this](const asio::error_code& ec, asio::ip::tcp::socket socket)
-        {
-            if (check_ec(ec, __func__))
-            {
-                gl_logger->info("Server accepted connection");
+    for (;;)
+    {
+        auto [ec, socket] =
+            co_await acceptor_.async_accept(asio::as_tuple(use_awaitable));
 
-                auto session = std::make_shared<HTTPSession>(io_, std::move(socket), 
-                                                generate_session_id());
-                session->start();
-            }
+        if (!check_ec(ec, __func__))
+           co_return;
 
-            if (running_mode_ == ServerRunningMode::Persistent)
-                do_accept();
-        });
+        gl_logger->info("Server accepted connection");
+
+        auto session = std::make_shared<HTTPSession>(io_, std::move(socket),
+                                                        generate_session_id());
+        session->start();
+
+        if (running_mode_ != ServerRunningMode::Persistent)
+            break;
+    }
 }

@@ -6,11 +6,22 @@
 #include <asio/any_io_executor.hpp>
 #include <asio/io_context.hpp>
 #include <asio/ssl.hpp>
+
+#include <asio/co_spawn.hpp>
+#include <asio/detached.hpp>
+#include <asio/awaitable.hpp>
+#include <asio/use_awaitable.hpp>
+
 #include <iostream>
 #include <sstream>
 #include <string>
 
 using asio::ip::tcp;
+
+using asio::use_awaitable;
+using asio::awaitable;
+namespace this_coro = asio::this_coro;
+
 
 class HTTPSession : public std::enable_shared_from_this<HTTPSession>
 {
@@ -35,16 +46,16 @@ class HTTPSession : public std::enable_shared_from_this<HTTPSession>
             : outer_session_(outer_session), context_(outer_session->get_context()),
               resolver_(context_.io), stream_(context_.io, context_.tls_context) {}
         ~OutgoingSession();
-        void start();
+        awaitable<void> start();
 
     protected:
         void on_connect();
 
     private:
         bool init_ssl();
-        void connect(const tcp::resolver::results_type& endpoints);
-        void send_request();
-        void read_response();
+        awaitable<void> connect(const tcp::resolver::results_type& endpoints);
+        awaitable<void> send_request();
+        awaitable<void> read_response();
         void generate_request();
 
     private:
@@ -73,10 +84,10 @@ protected:
         return {io_, strand_, tls_context_, request_, id_};
     }
     void on_request(HttpRequest request);
-    void on_outgoing_session_completed(const asio::error_code& ec, std::string response);
+    awaitable<void> on_outgoing_session_completed(const asio::error_code& ec, std::string response);
 
 private:
-    void obtain_header();
+    awaitable<void> obtain_header();
 
 private:
     asio::io_context& io_;
