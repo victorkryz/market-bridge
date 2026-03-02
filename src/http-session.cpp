@@ -31,13 +31,17 @@ void HTTPSession::start()
 {
     gl_logger->info("HTTPSession started, id: {} ...", id_);
 
-    asio::co_spawn(strand_, obtain_header(), asio::detached);
+    asio::co_spawn(strand_, start_impl(), asio::detached);
+}
+
+awaitable<void> HTTPSession::start_impl()
+{
+    auto self = shared_from_this();
+    co_await obtain_header();
 }
 
 awaitable<void> HTTPSession::obtain_header()
 {
-    std::shared_ptr<HTTPSession> self = shared_from_this();
-
     auto [ec, bytes_transferred] =
         co_await asio::async_read_until(socket_, buffer_,
                                         http_request_headers_delimiter, asio::as_tuple(use_awaitable));
@@ -54,9 +58,10 @@ awaitable<void> HTTPSession::obtain_header()
 void HTTPSession::on_request(HttpRequest request)
 {
     request_ = std::move(request);
-    std::shared_ptr<HTTPSession> self = shared_from_this();
 
+    auto self = shared_from_this();
     auto outgoing_session = std::make_shared<HTTPSession::OutgoingSession>(self);
+
     asio::co_spawn(strand_, outgoing_session->start(), asio::detached);
 }
 
@@ -67,11 +72,10 @@ awaitable<void> HTTPSession::on_outgoing_session_completed(const asio::error_cod
 
     response_ = std::move(response);
 
-    auto self = shared_from_this();
-
     auto buff = asio::buffer(response_);
     auto [ec, _] = co_await asio::async_write(socket_, buff,
                                               asio::as_tuple(use_awaitable));
+    check_ec(ec, __func__);
 
     asio::error_code ec_formal;
     auto rc = socket_.shutdown(tcp::socket::shutdown_both, ec_formal);
@@ -80,7 +84,7 @@ awaitable<void> HTTPSession::on_outgoing_session_completed(const asio::error_cod
 
 HTTPSession::OutgoingSession::~OutgoingSession()
 {
-    gl_logger->trace("OutgoingSession destructed id: {}...", context_.session_id);
+    gl_logger->trace("OutgoingSession destructed, id: {}...", context_.session_id);
 }
 
 awaitable<void> HTTPSession::OutgoingSession::start()
@@ -99,44 +103,32 @@ awaitable<void> HTTPSession::OutgoingSession::start()
         co_await resolver_.async_resolve(HOST, PORT, asio::as_tuple(use_awaitable));
     if (check_ec(ec, __func__))
     {
-        asio::co_spawn(context_.strand, connect(results), asio::detached);
+        co_await connect(results);
     }
 }
 
 awaitable<void> HTTPSession::OutgoingSession::connect(const tcp::resolver::results_type& endpoints)
 {
-    auto self = shared_from_this();
-
     auto [ec, _] =
         co_await asio::async_connect(stream_.next_layer(), endpoints, asio::as_tuple(use_awaitable));
 
     if (check_ec(ec, __func__))
     {
-        on_connect();
+        co_await on_connect();
     }
 };
 
-void HTTPSession::OutgoingSession::on_connect()
+awaitable<void> HTTPSession::OutgoingSession::on_connect()
 {
     gl_logger->info("OutgoingSession connected, id: {}", context_.session_id);
 
-    auto self = shared_from_this();
+    co_await stream_.async_handshake(asio::ssl::stream_base::client, use_awaitable);
 
-    stream_.async_handshake(asio::ssl::stream_base::client,
-                            asio::bind_executor(context_.strand,
-                                                [this, self](const asio::error_code& ec)
-                                                {
-                                                    if (check_ec(ec, __func__))
-                                                    {
-                                                        asio::co_spawn(context_.strand, send_request(), asio::detached);
-                                                    }
-                                                }));
+    co_await send_request();
 }
 
 awaitable<void> HTTPSession::OutgoingSession::send_request()
 {
-    auto self = shared_from_this();
-
     generate_request();
 
     auto [ec, _] =
@@ -144,28 +136,25 @@ awaitable<void> HTTPSession::OutgoingSession::send_request()
 
     if (check_ec(ec, __func__))
     {
-        asio::co_spawn(context_.strand, read_response(), asio::detached);
+        co_await read_response();
     }
 }
 
 awaitable<void> HTTPSession::OutgoingSession::read_response()
 {
-    auto self = shared_from_this();
-
     auto [ec, n] =
         co_await stream_.async_read_some(asio::buffer(buffer_), asio::as_tuple(use_awaitable));
 
     if (is_eof(ec))
     {
         std::string resp(response_.str());
-        asio::co_spawn(context_.strand,
-                       outer_session_->on_outgoing_session_completed(ec, std::move(resp)),
-                       asio::detached);
+
+        co_await outer_session_->on_outgoing_session_completed(ec, std::move(resp));
     }
     else if (check_ec(ec, __func__))
     {
         response_.write(buffer_.data(), static_cast<std::streamsize>(n));
-        asio::co_spawn(context_.strand, read_response(), asio::detached); // continue reading
+        co_await read_response();
     }
 }
 

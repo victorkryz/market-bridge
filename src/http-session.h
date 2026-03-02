@@ -49,7 +49,7 @@ class HTTPSession : public std::enable_shared_from_this<HTTPSession>
         awaitable<void> start();
 
     protected:
-        void on_connect();
+        awaitable<void> on_connect();
 
     private:
         bool init_ssl();
@@ -79,6 +79,7 @@ public:
     }
 
 protected:
+    awaitable<void> start_impl();
     Context get_context()
     {
         return {io_, strand_, tls_context_, request_, id_};
@@ -88,7 +89,7 @@ protected:
 
 private:
     awaitable<void> obtain_header();
-
+    
 private:
     asio::io_context& io_;
     tcp::socket socket_;

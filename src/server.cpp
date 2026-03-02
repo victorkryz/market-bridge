@@ -9,8 +9,8 @@ Server::Server(unsigned short port, ServerRunningMode running_mode) : running_mo
 int Server::run()
 {
     gl_logger->info("Server running ...");
-
-    asio::co_spawn(io_, listener(), asio::detached);
+    
+    listener();
 
     std::vector<std::thread> threads;
 
@@ -26,23 +26,46 @@ int Server::run()
     return 0;
 }
 
-awaitable<void> Server::listener()
+void Server::listener()
 {
-    for (;;)
+    acceptor_.async_accept(
+        [this](const asio::error_code& ec, asio::ip::tcp::socket socket)
+        {
+            if (check_ec(ec, __func__))
+            {
+                gl_logger->info("Server accepted connection");
+
+                dispatch_request(std::move(socket));
+            }
+
+            if (running_mode_ == ServerRunningMode::Persistent)
+                listener();
+        });
+}
+
+void Server::dispatch_request(asio::ip::tcp::socket socket)
+{
+    constexpr uint8_t tls_handshake_sign[] = {0x16, 0x03, 0x01};
+
+    std::array<uint8_t, 3> buff;
+    size_t n = socket.receive(asio::buffer(buff),
+                              asio::socket_base::message_peek);
+    // check if https protocol:
+    if ((n >= buff.size()) &&
+        (buff[0] == tls_handshake_sign[0] && buff[1] == tls_handshake_sign[1]))
     {
-        auto [ec, socket] =
-            co_await acceptor_.async_accept(asio::as_tuple(use_awaitable));
+        // preventing from access via https link
+        // e.g.  https://localhost:8080/api/v3/time
+        gl_logger->error("Refused! (HTTPS protocol is currently not supported)");
 
-        if (!check_ec(ec, __func__))
-           co_return;
-
-        gl_logger->info("Server accepted connection");
-
+        asio::error_code ec_formal;
+        auto rc = socket.shutdown(tcp::socket::shutdown_both, ec_formal);
+        socket.close();
+    }
+    else
+    {
         auto session = std::make_shared<HTTPSession>(io_, std::move(socket),
-                                                        generate_session_id());
+                                                     generate_session_id());
         session->start();
-
-        if (running_mode_ != ServerRunningMode::Persistent)
-            break;
     }
 }
