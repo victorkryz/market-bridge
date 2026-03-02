@@ -25,7 +25,8 @@ public:
     int run();
 
 private:
-    void do_accept();
+    void listener();
+    void dispatch_request(asio::ip::tcp::socket socket);
 
     ServerRunningMode running_mode_;
     asio::io_context io_;
