@@ -1,10 +1,13 @@
 # $\color{MidnightBlue}\textit{\textbf{market-bridge}}$
 
 
-![C++](https://img.shields.io/badge/C++-17-purple?logo=C++)
+![C++](https://img.shields.io/badge/C++-17/20-purple?logo=C++)
 ![asio](https://img.shields.io/badge/asio-1.36.0-lightblue?logo=asio)
-![cmake](https://img.shields.io/badge/cmake-3.30-brightgreen)
+![cmake](https://img.shields.io/badge/cmake-3.30-lightgray)
+![gtest](https://img.shields.io/badge/GTest-1.14.0-blueviolet)
+![doctest](https://img.shields.io/badge/doctest-2.4.12-brightgreen)
 ![Ubuntu](https://img.shields.io/badge/Ubuntu-18.04+-red?logo=Ubuntu)
+![Windows](https://img.shields.io/badge/Windows-11-blue?logo=Windows)
 
 
 **Market-bridge**  is a lightweight, high-performance C++ proxy server for the Binance Open API, implemented using the standalone Asio library.
@@ -89,6 +92,10 @@ To build the project under Linux OS use build.sh script with build type specific
     cmake --build  build
 ```
 
+#### Branches:
+
+ - **main** -  C++17 implementation using ASIO asynchronous APIs with lambda handlers
+ - **dev/cpp20** - C++20 implementation using ASIO coroutines (in-progress)
 
 
 
