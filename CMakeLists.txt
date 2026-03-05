@@ -74,7 +74,7 @@ find_package(OpenSSL REQUIRED)
 
 file(GLOB SRC_FILES RELATIVE ${CMAKE_CURRENT_SOURCE_DIR} src/*.cpp src/*.h src/*.hpp src/*.c)
 
-add_executable(${app} ${SRC_FILES}) 
+add_executable(${app} ${SRC_FILES})
 
 target_include_directories(${app} PRIVATE
     ${PROJECT_SOURCE_DIR}/src)
@@ -93,4 +93,39 @@ target_compile_definitions(${app} PRIVATE
 
 add_subdirectory(tests)
 
+
+#if (WIN32)
+
 install(TARGETS ${app} DESTINATION bin)
+
+# install SSL dymnmic libraries
+install(
+    DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/${CMAKE_BUILD_TYPE}/.
+    DESTINATION bin
+    FILES_MATCHING
+    PATTERN "*.dll"
+)
+
+# download and install SSL certs
+set(CA_CERT_URL "https://curl.se/ca/cacert.pem")
+set(CA_CERT_FILE "${CMAKE_BINARY_DIR}/cacert.pem")
+
+if(NOT EXISTS "${CA_CERT_FILE}")
+    message(STATUS "Downloading CA bundle...")
+    file(DOWNLOAD
+        ${CA_CERT_URL}
+        ${CA_CERT_FILE}
+        SHOW_PROGRESS
+        TLS_VERIFY ON
+    )
+endif()
+
+install(FILES
+    ${CMAKE_CURRENT_BINARY_DIR}/cacert.pem
+    DESTINATION bin/certs)
+
+#elseif
+
+install(TARGETS ${app} DESTINATION bin)
+
+#endif
