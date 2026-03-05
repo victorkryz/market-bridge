@@ -38,6 +38,7 @@ class HTTPSession : public std::enable_shared_from_this<HTTPSession>
 
     class OutgoingSession : public std::enable_shared_from_this<OutgoingSession>
     {
+    public:
         inline static const std::string HOST = "api.binance.com";
         inline static const std::string PORT = "443";
 
@@ -52,10 +53,10 @@ class HTTPSession : public std::enable_shared_from_this<HTTPSession>
         awaitable<void> on_connect();
 
     private:
-        bool init_ssl();
         awaitable<void> connect(const tcp::resolver::results_type& endpoints);
         awaitable<void> send_request();
         awaitable<void> read_response();
+        bool init_ssl();
         void generate_request();
 
     private:
@@ -88,6 +89,7 @@ protected:
     awaitable<void> on_outgoing_session_completed(const asio::error_code& ec, std::string response);
 
 private:
+    bool init_tls_context();
     awaitable<void> obtain_header();
     
 private:

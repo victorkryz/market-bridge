@@ -11,14 +11,6 @@ HTTPSession::HTTPSession(asio::io_context& io, tcp::socket&& socket, uint64_t id
       tls_context_(asio::ssl::context::tls_client),
       id_(id)
 {
-#ifdef _WIN32
-    tls_context_.set_verify_mode(asio::ssl::verify_peer);
-    tls_context_.load_verify_file("certs\\cacert.pem");
-#else
-    // Use system CA certificates (Linux/macOS typically OK)
-    tls_context_.set_default_verify_paths();
-#endif
-
     gl_logger->trace("HTTPSession constructed, id: {}", id_);
 }
 
@@ -37,6 +29,13 @@ void HTTPSession::start()
 awaitable<void> HTTPSession::start_impl()
 {
     auto self = shared_from_this();
+
+    if ( !init_tls_context() )
+    {
+        gl_logger->info("HTTPSession failed, id: {} ...", id_);
+        co_return;
+    }
+
     co_await obtain_header();
 }
 
@@ -64,6 +63,37 @@ void HTTPSession::on_request(HttpRequest request)
 
     asio::co_spawn(strand_, outgoing_session->start(), asio::detached);
 }
+
+bool HTTPSession::init_tls_context()
+{
+    bool result(true);
+    std::string failure_hints;
+
+    try
+    {
+        // Verify server certificate
+        tls_context_.set_verify_mode(asio::ssl::verify_peer);
+        tls_context_.set_verify_callback(asio::ssl::host_name_verification(OutgoingSession::HOST));
+
+#ifdef _WIN32
+        const std::string cert_path = "certs\\cacert.pem";
+        failure_hints = fmt::format("(possibly SSL certificate not found ({})", cert_path);
+
+        tls_context_.load_verify_file(cert_path);
+#else
+        // Use system CA certificates (Linux/macOS typically OK)
+        tls_context_.set_default_verify_paths();
+#endif
+    }
+    catch (const std::exception& e)
+    {
+        gl_logger->error("TLS initialization failure {} {}", e.what(), failure_hints);
+        result = false;
+    }
+
+    return result;
+}
+
 
 awaitable<void> HTTPSession::on_outgoing_session_completed(const asio::error_code& ec_in, std::string response)
 {
@@ -177,12 +207,9 @@ void HTTPSession::OutgoingSession::generate_request()
                                 context_.request.target, HOST, user_agent);
 }
 
+
 bool HTTPSession::OutgoingSession::init_ssl()
 {
-    // Verify server certificate (important)
-    stream_.set_verify_mode(asio::ssl::verify_peer);
-    stream_.set_verify_callback(asio::ssl::host_name_verification(HOST));
-
     // SNI (many hosts require it)
     bool result = SSL_set_tlsext_host_name(stream_.native_handle(), HOST.c_str());
     if (!result)
