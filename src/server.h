@@ -23,12 +23,16 @@ class Server
 public:
     Server(unsigned short port, ServerRunningMode running_mode = ServerRunningMode::Persistent);
     int run();
+    void schedule_shutdown();
 
 private:
     void listener();
     void dispatch_request(asio::ip::tcp::socket socket);
+    void install_signals_handler();
 
     ServerRunningMode running_mode_;
     asio::io_context io_;
     asio::ip::tcp::acceptor acceptor_;
+    asio::signal_set signals_;
+    bool shutdown_pending_ = false;
 };
