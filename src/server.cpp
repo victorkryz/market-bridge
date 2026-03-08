@@ -4,12 +4,16 @@
 #include "logs/logger.h"
 
 Server::Server(unsigned short port, ServerRunningMode running_mode) : running_mode_(running_mode),
-                                                                      acceptor_(io_, asio::ip::tcp::endpoint(tcp::v4(), port)) {}
+                                                                      signals_(io_, SIGINT, SIGTERM),
+                                                                      acceptor_(io_, asio::ip::tcp::endpoint(tcp::v4(),
+                                                                                                             port)) {}
 
 int Server::run()
 {
     gl_logger->info("Server running ...");
-    
+
+    install_signals_handler();
+
     listener();
 
     std::vector<std::thread> threads;
@@ -17,13 +21,20 @@ int Server::run()
     for (size_t i = 0; i < 3; i++)
         threads.emplace_back([this]()
                              { io_.run(); });
-
     for (auto& th : threads)
         th.join();
 
     gl_logger->info("Server finished");
 
     return 0;
+}
+
+void Server::schedule_shutdown()
+{
+    gl_logger->info("Shutdown pending ...");
+
+    shutdown_pending_ = true;
+    acceptor_.close();
 }
 
 void Server::listener()
@@ -38,7 +49,7 @@ void Server::listener()
                 dispatch_request(std::move(socket));
             }
 
-            if (running_mode_ == ServerRunningMode::Persistent)
+            if ((running_mode_ == ServerRunningMode::Persistent) && !shutdown_pending_)
                 listener();
         });
 }
@@ -68,4 +79,16 @@ void Server::dispatch_request(asio::ip::tcp::socket socket)
                                                      generate_session_id());
         session->start();
     }
+}
+
+void Server::install_signals_handler()
+{
+    signals_.async_wait(
+        [this](const asio::error_code& ec, int signo)
+        {
+            if (check_ec(ec, __func__))
+            {
+                schedule_shutdown();
+            }
+        });
 }
