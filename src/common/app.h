@@ -8,7 +8,7 @@ struct ClArguments
     uint16_t port = 8080; // default port
     ServerRunningMode running_mode = ServerRunningMode::Persistent;
     spdlog::level::level_enum log_level = spdlog::level::level_enum::info; // default log level
-    LoggerType logger_type = LoggerType::File;
+    LoggerType logger_type = LoggerType::Console;
 };
 
 void show_usage(const cxxopts::Options& options);
@@ -30,11 +30,11 @@ inline std::pair<int, bool> process_arguments(int argc, char* argv[], ClArgument
         // clang-format off
         options.add_options()("p, port", "specify port (default: 8080)",
                               cxxopts::value<decltype(args.port)>(args.port))
-                              ("t, log_type", "specify logging type (file, con)",
-                              cxxopts::value<std::string>(log_type)->default_value("file"))
-                               ("r, run_mode", "specify running mode (persist, single_request)",
+                              ("o, log-output", "specify logging output (file, console)",
+                              cxxopts::value<std::string>(log_type)->default_value("console"))
+                               ("r, run-mode", "specify running mode (persist, single-request)",
                               cxxopts::value<std::string>(running_mode)->default_value("persist"))
-                              ("l, log_level", "specify log level (error, warning, trace, debug, critical, off) (default: info)",
+                              ("l, log-level", "specify log level (error, warning, trace, debug, critical, off) (default: info)",
                               cxxopts::value<std::string>(log_level))
                               ("h, help", "print usage");
         // clang-format on
@@ -51,10 +51,12 @@ inline std::pair<int, bool> process_arguments(int argc, char* argv[], ClArgument
             {
                 if ((log_type == "con") || (log_type == "console"))
                     args.logger_type = LoggerType::Console;
+                else if (log_type == "file")
+                    args.logger_type = LoggerType::File;
             }
             if (!running_mode.empty())
             {
-                if (running_mode == "single_request")
+                if (running_mode == "single-request")
                     args.running_mode = ServerRunningMode::SingleRequest;
             }
         }

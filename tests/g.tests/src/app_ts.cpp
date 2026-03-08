@@ -20,12 +20,14 @@ void show_usage(const cxxopts::Options& options)
 
 struct TestBase
 {
+    inline static constexpr LoggerType default_log_type = LoggerType::Console;
+
     void SetUp()
     {
         gl_show_usage_called = false;
     };
 
-    void TearDown(){};
+    void TearDown() {};
 
     ClArguments out_args_;
     std::vector<char*> in_args_;
@@ -105,6 +107,7 @@ TEST_F(CommandLineTS, EmptyLineTest)
     EXPECT_EQ(out_args_.port, default_http_port);
     EXPECT_EQ(out_args_.log_level, spdlog::level::level_enum::info);
     EXPECT_EQ(out_args_.running_mode, ServerRunningMode::Persistent);
+    EXPECT_EQ(out_args_.logger_type, default_log_type);
 
     EXPECT_FALSE(usage_requested);
     EXPECT_FALSE(gl_show_usage_called);
@@ -137,6 +140,7 @@ TEST_F(CommandLineTS, PortArgTest)
     EXPECT_EQ(out_args_.port, in_port);
     EXPECT_EQ(out_args_.log_level, spdlog::level::level_enum::info);
     EXPECT_EQ(out_args_.running_mode, ServerRunningMode::Persistent);
+    EXPECT_EQ(out_args_.logger_type, default_log_type);
 
     EXPECT_FALSE(usage_requested);
     EXPECT_FALSE(gl_show_usage_called);
@@ -156,7 +160,7 @@ INSTANTIATE_TEST_SUITE_P(LogLevelArg,
 TEST_P(LogLevel_TS, LogLevelArg)
 {
     auto [log_level_str, spd_log_level] = GetParam();
-    in_args_ = {"", "--log_level", log_level_str.data()};
+    in_args_ = {"", "--log-level", log_level_str.data()};
 
     const auto [exit_code, usage_requested] =
         process_arguments(in_args_.size(), in_args_.data(), out_args_);
@@ -164,6 +168,7 @@ TEST_P(LogLevel_TS, LogLevelArg)
     EXPECT_EQ(exit_code, 0);
     EXPECT_EQ(out_args_.port, default_http_port);
     EXPECT_EQ(out_args_.running_mode, ServerRunningMode::Persistent);
+    EXPECT_EQ(out_args_.logger_type, default_log_type);
 
     EXPECT_EQ(out_args_.log_level, spd_log_level);
 
@@ -181,7 +186,7 @@ INSTANTIATE_TEST_SUITE_P(LoggerType,
 TEST_P(LogType_TS, LoggerType)
 {
     auto [logger_type_str, logger_type] = GetParam();
-    in_args_ = {"", "--log_type", logger_type_str.data()};
+    in_args_ = {"", "--log-output", logger_type_str.data()};
 
     const auto [exit_code, usage_requested] =
         process_arguments(in_args_.size(), in_args_.data(), out_args_);
@@ -201,12 +206,12 @@ INSTANTIATE_TEST_SUITE_P(RunMode,
                          RunMode_TS,
                          ::testing::Values(
                              RunModePair("persist", ServerRunningMode::Persistent),
-                             RunModePair("single_request", ServerRunningMode::SingleRequest)));
+                             RunModePair("single-request", ServerRunningMode::SingleRequest)));
 
 TEST_P(RunMode_TS, RunMode)
 {
     auto [run_mode_str, run_mode] = GetParam();
-    in_args_ = {"", "--run_mode", run_mode_str.data()};
+    in_args_ = {"", "--run-mode", run_mode_str.data()};
 
     const auto [exit_code, usage_requested] =
         process_arguments(in_args_.size(), in_args_.data(), out_args_);
@@ -214,7 +219,7 @@ TEST_P(RunMode_TS, RunMode)
     EXPECT_EQ(exit_code, 0);
     EXPECT_EQ(out_args_.port, default_http_port);
     EXPECT_EQ(out_args_.log_level, spdlog::level::level_enum::info);
-    EXPECT_EQ(out_args_.logger_type, LoggerType::File);
+    EXPECT_EQ(out_args_.logger_type, default_log_type);
 
     EXPECT_EQ(out_args_.running_mode, run_mode);
 
