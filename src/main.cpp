@@ -7,6 +7,7 @@
 #include <spdlog/sinks/stdout_color_sinks.h>
 
 #include <cxxopts.hpp>
+#include <stdexcept>
 
 #include "logs/logger.h"
 #include "server.h"
@@ -15,8 +16,6 @@
 namespace fsys = std::filesystem;
 
 std::shared_ptr<spdlog::logger> init_logger(LoggerType, spdlog::level::level_enum logging_level);
-
-std::pair<int, bool> process_arguments(int argc, char* argv[], ClArguments& args);
 void show_usage(const cxxopts::Options& options);
 
 int main(int argc, char* argv[])
@@ -54,20 +53,34 @@ std::shared_ptr<spdlog::logger> init_logger(LoggerType logger_type,
 {
     using namespace std::literals;
 
-    constexpr const auto sub_folder_name("logs"sv);
-    constexpr const auto log_file_name("mb-log.log"sv);
-
     std::shared_ptr<spdlog::logger> logger;
 
     if (logger_type == LoggerType::File)
     {
-        if (!fsys::exists(sub_folder_name))
-            fsys::create_directory(sub_folder_name);
+        constexpr const auto log_file_name("mb-log.log"sv);
 
-        fsys::path log_sub_folder(sub_folder_name);
-        fsys::path relative_log_file_path = log_sub_folder / fsys::path(log_file_name);
+#ifdef __linux__
+        const char* home_path = std::getenv("HOME");
+        if (nullptr == home_path)
+            throw std::runtime_error("HOME environment variable is not defined!");
 
-        logger = spdlog::daily_logger_mt("logger_1", relative_log_file_path.string());
+        const fsys::path base_folder(fsys::path(home_path) /
+                                     fsys::path(".local/share"));
+        constexpr const auto sub_folder_name(app_name);
+#else
+        const auto base_folder(fsys::current_path().string());
+        constexpr const auto sub_folder_name("logs"sv);
+#endif
+
+        fsys::path log_file_directory(base_folder);
+        log_file_directory.append(sub_folder_name);
+
+        if (!fsys::exists(log_file_directory))
+            fsys::create_directory(log_file_directory);
+
+        fsys::path log_file_path = log_file_directory / fsys::path(log_file_name);
+
+        logger = spdlog::daily_logger_mt("logger_1", log_file_path.string());
     }
     else
     {
@@ -86,8 +99,10 @@ void show_usage(const cxxopts::Options& options)
     constexpr const char* samples_of_using_templ =
         R"(Command line samples:
     {app_name}
+    {app_name} -h
     {app_name} -p 8080
-    {app_name} -l info)";
+    {app_name} -l info
+    {app_name} -o file)";
 
     std::string samples_of_using =
         fmt::format(samples_of_using_templ, fmt::arg("app_name", app_name));
