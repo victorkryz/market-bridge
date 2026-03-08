@@ -50,10 +50,12 @@ For example:
 ### Command line arguments:
 
 ```
--p, --port arg       specify port (default: 8080)
--l, --log_level arg  specify log level (error, warning, trace, debug, 
-                       critical, off) (default: info)
--h, --help           print usage
+-h, --help            print usage
+-p, --port arg        specify port (default: 8080)
+-o, --log-output arg  specify logging output (file, console) (default: console)
+                      (in case 'file' is set the log files located in ~/.local/share/market-bridge)
+-l, --log_level arg   specify log level (error, warning, trace, debug, 
+                                         critical, off) (default: info)
 
 ```
 
@@ -64,6 +66,7 @@ market-bridge
 market-bridge -p 8080
 market-bridge -l info
 market-bridge -h
+market-bridge -o file
 
 ```
 
@@ -99,3 +102,48 @@ To build the project under Linux OS use build.sh script with build type specific
 
 
 
+### Validation tests
+-------------------------------------------------------------------------
+
+The proxy server has been validated with several tests.
+
+### 1. Response integrity
+
+Responses returned via the proxy are identical to direct Binance responses.
+
+```
+  diff <(curl -s http://localhost:8080/api/v3/price) <(curl -s https://api.binance.com/api/v3/price)
+```  
+
+### 2. Latency overhead
+
+The proxy adds only minimal latency (~few milliseconds)
+
+```
+  curl -w "%{time_total}\n" -o /dev/null -s https://api.binance.com/api/v3/time
+  curl -w "%{time_total}\n" -o /dev/null -s http://localhost:8080/api/v3/time
+```  
+
+### 3. Concurrent client handling
+
+The proxy successfully handled 1000 requests with 50 concurrent clients
+
+```
+  hey -n 1000 -c 50 http://localhost:8080/api/v3/time
+```  
+
+### 4. Integration test
+
+The proxy has been tested using the Python project 
+[*order-book-viewer-py*](https://github.com/victorkryz/order-book-viewer-py), which successfully  
+retrieved order-book data via the proxy: border-book-viewer-py  →  market-bridge proxy  →  api.binance.com
+
+```
+  python order-book-view.py --host http://localhost:8080
+```  
+
+### 5. Memory leaks check
+
+```
+  valgrind -s --leak-check=yes build/market-bridge
+```
