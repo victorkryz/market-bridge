@@ -10,9 +10,12 @@
 #include <sstream>
 #include <string>
 
+#include "common/session.h"
+
 using asio::ip::tcp;
 
-class HTTPSession : public std::enable_shared_from_this<HTTPSession>
+class HTTPSession : public Session,
+                    public std::enable_shared_from_this<HTTPSession>
 {
     constexpr static size_t buffer_size = 4096;
 
@@ -25,7 +28,8 @@ class HTTPSession : public std::enable_shared_from_this<HTTPSession>
         const uint64_t& session_id;
     };
 
-    class OutgoingSession : public std::enable_shared_from_this<OutgoingSession>
+    class OutgoingSession : public Session,
+                            public std::enable_shared_from_this<OutgoingSession>
     {
         inline static const std::string HOST = "api.binance.com";
         inline static const std::string PORT = "443";
@@ -35,7 +39,13 @@ class HTTPSession : public std::enable_shared_from_this<HTTPSession>
             : outer_session_(outer_session), context_(outer_session->get_context()),
               resolver_(context_.io), stream_(context_.io, context_.tls_context) {}
         ~OutgoingSession();
-        void start();
+
+        void start() override;
+        void stop() override {};
+        uint64_t get_id() override
+        {
+            return context_.session_id;
+        }
 
     protected:
         void on_connect();
@@ -59,10 +69,11 @@ class HTTPSession : public std::enable_shared_from_this<HTTPSession>
 
 public:
     HTTPSession(asio::io_context& io_, asio::ip::tcp::socket&& socket, uint64_t id);
-    ~HTTPSession();
+    ~HTTPSession() override;
 
-    void start();
-    uint64_t get_id()
+    void start() override;
+    void stop() override;
+    uint64_t get_id() override
     {
         return id_;
     }
@@ -90,4 +101,5 @@ private:
     asio::ssl::context tls_context_;
     std::string response_;
     uint64_t id_{0};
+    bool stopped_ = false;
 };

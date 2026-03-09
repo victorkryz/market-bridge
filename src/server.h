@@ -5,11 +5,15 @@
 #include <asio/ip/tcp.hpp>
 #include <atomic>
 
+#include "common/session.h"
+
 enum class ServerRunningMode
 {
     Persistent,   // Default: handle multiple requests
     SingleRequest // Handle exactly one request, then stop
 };
+
+class HTTPSession;
 
 class Server
 {
@@ -35,4 +39,5 @@ private:
     asio::ip::tcp::acceptor acceptor_;
     asio::signal_set signals_;
     bool shutdown_pending_ = false;
+    std::vector<std::weak_ptr<Session>> sessions_;
 };

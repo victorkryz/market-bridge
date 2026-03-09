@@ -32,9 +32,23 @@ int Server::run()
 
 void Server::schedule_shutdown()
 {
-    gl_logger->info("Shutdown pending ...");
+    gl_logger->info("Server, shutdown pending ...");
 
     shutdown_pending_ = true;
+
+    for (auto it = sessions_.begin(); it != sessions_.end(); )
+    {
+        if (auto session = it->lock())
+        {
+            session->stop();
+            ++it;
+        }
+        else
+        {
+            it = sessions_.erase(it);
+        }
+    }
+    
     acceptor_.close();
 }
 
@@ -78,6 +92,7 @@ void Server::dispatch_request(asio::ip::tcp::socket socket)
     {
         auto session = std::make_shared<HTTPSession>(io_, std::move(socket),
                                                      generate_session_id());
+        sessions_.push_back(session);
         session->start();
     }
 }
