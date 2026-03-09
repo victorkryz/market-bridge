@@ -24,13 +24,20 @@ void HTTPSession::start()
 {
     gl_logger->info("HTTPSession started, id: {} ...", id_);
 
-    if ( !init_tls_context() )
+    if (!init_tls_context())
     {
         gl_logger->info("HTTPSession failed, id: {} ...", id_);
-        return;
     }
+    else
+    {
+        obtain_header();
+    }
+}
 
-    obtain_header();
+void HTTPSession::stop()
+{
+    gl_logger->info("HTTPSession session, stop pending, id: {} ...", id_);
+    stopped_ = true;
 }
 
 bool HTTPSession::init_tls_context()
@@ -40,18 +47,18 @@ bool HTTPSession::init_tls_context()
 
     try
     {
-        #ifdef _WIN32
-            const std::string cert_path = "certs\\cacert.pem";
-            failure_hints = fmt::format("(possibly SSL certificate not found ({})", cert_path);
+#ifdef _WIN32
+        const std::string cert_path = "certs\\cacert.pem";
+        failure_hints = fmt::format("(possibly SSL certificate not found ({})", cert_path);
 
-            tls_context_.set_verify_mode(asio::ssl::verify_peer);
-            tls_context_.load_verify_file(cert_path);
-        #else
-            // Use system CA certificates (Linux/macOS typically OK)
-            tls_context_.set_default_verify_paths();
-        #endif
+        tls_context_.set_verify_mode(asio::ssl::verify_peer);
+        tls_context_.load_verify_file(cert_path);
+#else
+        // Use system CA certificates (Linux/macOS typically OK)
+        tls_context_.set_default_verify_paths();
+#endif
     }
-    catch(const std::exception& e)
+    catch (const std::exception& e)
     {
         gl_logger->error("TLS initialization failure {} {}", e.what(), failure_hints);
         result = false;
@@ -83,8 +90,11 @@ void HTTPSession::obtain_header()
 
 void HTTPSession::on_request(HttpRequest request)
 {
-    request_ = std::move(request);
+    if (stopped_)
+        return;
+
     std::shared_ptr<HTTPSession> self = shared_from_this();
+    request_ = std::move(request);
 
     auto outgoing_session = std::make_shared<HTTPSession::OutgoingSession>(self);
     outgoing_session->start();
@@ -109,7 +119,6 @@ void HTTPSession::on_outgoing_session_completed(const asio::error_code& ec, std:
                                 auto rc = socket_.shutdown(tcp::socket::shutdown_both, ec_formal);
                             }));
 };
-
 
 HTTPSession::OutgoingSession::~OutgoingSession()
 {
