@@ -14,10 +14,13 @@
 
 using asio::ip::tcp;
 
+template <typename T>
 class HTTPSession : public Session,
-                    public std::enable_shared_from_this<HTTPSession>
+                    public std::enable_shared_from_this<HTTPSession<T>>
 {
     constexpr static size_t buffer_size = 4096;
+
+    using TSession = HTTPSession<T>;
 
     struct Context
     {
@@ -58,7 +61,7 @@ class HTTPSession : public Session,
         void generate_request();
 
     private:
-        std::shared_ptr<HTTPSession> outer_session_;
+        std::shared_ptr<TSession> outer_session_;
         Context context_;
         tcp::resolver resolver_;
         asio::ssl::stream<tcp::socket> stream_;
@@ -68,7 +71,7 @@ class HTTPSession : public Session,
     };
 
 public:
-    HTTPSession(asio::io_context& io_, asio::ip::tcp::socket&& socket, uint64_t id);
+    HTTPSession(asio::io_context& io_, T&& socket, uint64_t id);
     ~HTTPSession() override;
 
     void start() override;
@@ -92,7 +95,7 @@ private:
 
 private:
     asio::io_context& io_;
-    tcp::socket socket_;
+    T http_stream_;
     HttpRequest request_;
     asio::strand<asio::any_io_executor> strand_;
     asio::streambuf buffer_;

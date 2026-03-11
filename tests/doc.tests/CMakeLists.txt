@@ -6,12 +6,14 @@ add_executable(${test_module} ${tests_src_files} ${h_files})
 
 target_link_libraries(${test_module} PRIVATE asio
     cxxopts
-    spdlog::spdlog)
+    spdlog::spdlog
+    OpenSSL::SSL)
 
 target_compile_definitions(${test_module} PRIVATE
     APP_NAME="${test_module}"
-    APP_VERSION="1.0.0"
-    DEFAULT_HTTP_PORT=8080)
+    APP_VERSION="1.0.1"
+    DEFAULT_HTTP_PORT=8080
+    DEFAULT_HTTPS_PORT=8443)
 
 
 if(UNIX)

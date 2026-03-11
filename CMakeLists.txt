@@ -87,8 +87,9 @@ target_link_libraries(${app} PRIVATE asio
 
 target_compile_definitions(${app} PRIVATE
     APP_NAME="${app}"
-    APP_VERSION="1.0.0"
-    DEFAULT_HTTP_PORT=8080)
+    APP_VERSION="1.0.1"
+    DEFAULT_HTTP_PORT=8080
+    DEFAULT_HTTPS_PORT=8443)
 
 
 add_subdirectory(tests)

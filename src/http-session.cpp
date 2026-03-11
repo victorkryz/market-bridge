@@ -6,8 +6,9 @@
 
 #include "logs/logger.h"
 
-HTTPSession::HTTPSession(asio::io_context& io, tcp::socket&& socket, uint64_t id)
-    : io_(io), socket_(std::move(socket)), strand_(asio::make_strand(socket_.get_executor())),
+template <typename T>
+HTTPSession<T>::HTTPSession(asio::io_context& io, T&& socket, uint64_t id)
+    : io_(io), http_stream_(std::move(socket)), strand_(asio::make_strand(http_stream_.get_executor())),
       tls_context_(asio::ssl::context::tls_client),
       id_(id)
 {
@@ -15,12 +16,14 @@ HTTPSession::HTTPSession(asio::io_context& io, tcp::socket&& socket, uint64_t id
     gl_logger->trace("HTTPSession constructed, id: {}", id_);
 }
 
-HTTPSession::~HTTPSession()
+template <typename T>
+HTTPSession<T>::~HTTPSession()
 {
     gl_logger->trace("HTTPSession destructed, id: {}", id_);
 }
 
-void HTTPSession::start()
+template <typename T>
+void HTTPSession<T>::start()
 {
     gl_logger->info("HTTPSession started, id: {} ...", id_);
 
@@ -34,13 +37,15 @@ void HTTPSession::start()
     }
 }
 
-void HTTPSession::stop()
+template <typename T>
+void HTTPSession<T>::stop()
 {
     gl_logger->info("HTTPSession session, stop pending, id: {} ...", id_);
     stopped_ = true;
 }
 
-bool HTTPSession::init_tls_context()
+template <typename T>
+bool HTTPSession<T>::init_tls_context()
 {
     bool result(true);
     std::string failure_hints;
@@ -67,12 +72,13 @@ bool HTTPSession::init_tls_context()
     return result;
 }
 
-void HTTPSession::obtain_header()
+template <typename T>
+void HTTPSession<T>::obtain_header()
 {
-    std::shared_ptr<HTTPSession> self = shared_from_this();
+    std::shared_ptr<HTTPSession<T>> self = this->shared_from_this();
 
     asio::async_read_until(
-        socket_, buffer_, http_request_headers_delimiter,
+        http_stream_, buffer_, http_request_headers_delimiter,
         asio::bind_executor(strand_,
                             [this, self](const asio::error_code& ec, std::size_t bytes_transferred)
                             {
@@ -88,44 +94,50 @@ void HTTPSession::obtain_header()
                             }));
 }
 
-void HTTPSession::on_request(HttpRequest request)
+template <typename T>
+void HTTPSession<T>::on_request(HttpRequest request)
 {
     if (stopped_)
         return;
 
-    std::shared_ptr<HTTPSession> self = shared_from_this();
+    auto self = this->shared_from_this();
     request_ = std::move(request);
 
-    auto outgoing_session = std::make_shared<HTTPSession::OutgoingSession>(self);
+    auto outgoing_session = std::make_shared<HTTPSession<T>::OutgoingSession>(self);
     outgoing_session->start();
 }
 
-void HTTPSession::on_outgoing_session_completed(const asio::error_code& ec, std::string response)
+template <typename T>
+void HTTPSession<T>::on_outgoing_session_completed(const asio::error_code& ec, std::string response)
 {
     gl_logger->info("OutgoingSession completed, id: {}", id_);
     gl_logger->trace("Response {}", response);
 
     response_ = std::move(response);
 
-    auto self = shared_from_this();
+    auto self = this->shared_from_this();
 
     auto buff = asio::buffer(response_);
     asio::async_write(
-        socket_, buff,
+        http_stream_, buff,
         asio::bind_executor(strand_,
                             [this, self](const asio::error_code& ec, std::size_t)
                             {
                                 asio::error_code ec_formal;
-                                auto rc = socket_.shutdown(tcp::socket::shutdown_both, ec_formal);
+
+                                if constexpr (std::is_same_v<T, tcp::socket>)
+                                    auto rc = http_stream_.shutdown(tcp::socket::shutdown_both, ec_formal);
                             }));
 };
 
-HTTPSession::OutgoingSession::~OutgoingSession()
+template <typename T>
+HTTPSession<T>::OutgoingSession::~OutgoingSession()
 {
     gl_logger->trace("OutgoingSession destructed id: {}...", context_.session_id);
 }
 
-void HTTPSession::OutgoingSession::start()
+template <typename T>
+void HTTPSession<T>::OutgoingSession::start()
 {
     if (!init_ssl())
     {
@@ -135,7 +147,7 @@ void HTTPSession::OutgoingSession::start()
 
     gl_logger->info("OutgoingSession started, id: {}", context_.session_id);
 
-    auto self = shared_from_this();
+    auto self = this->shared_from_this();
 
     resolver_.async_resolve(HOST, PORT,
                             asio::bind_executor(context_.strand,
@@ -149,9 +161,10 @@ void HTTPSession::OutgoingSession::start()
                                                 }));
 }
 
-void HTTPSession::OutgoingSession::connect(const tcp::resolver::results_type& endpoints)
+template <typename T>
+void HTTPSession<T>::OutgoingSession::connect(const tcp::resolver::results_type& endpoints)
 {
-    auto self = shared_from_this();
+    auto self = this->shared_from_this();
 
     asio::async_connect(
         stream_.next_layer(), endpoints,
@@ -165,11 +178,12 @@ void HTTPSession::OutgoingSession::connect(const tcp::resolver::results_type& en
                             }));
 };
 
-void HTTPSession::OutgoingSession::on_connect()
+template <typename T>
+void HTTPSession<T>::OutgoingSession::on_connect()
 {
     gl_logger->info("OutgoingSession connected, id: {}", context_.session_id);
 
-    auto self = shared_from_this();
+    auto self = this->shared_from_this();
 
     stream_.async_handshake(asio::ssl::stream_base::client,
                             asio::bind_executor(context_.strand,
@@ -182,9 +196,10 @@ void HTTPSession::OutgoingSession::on_connect()
                                                 }));
 }
 
-void HTTPSession::OutgoingSession::send_request()
+template <typename T>
+void HTTPSession<T>::OutgoingSession::send_request()
 {
-    auto self = shared_from_this();
+    auto self = this->shared_from_this();
 
     generate_request();
 
@@ -199,9 +214,10 @@ void HTTPSession::OutgoingSession::send_request()
                                           }));
 }
 
-void HTTPSession::OutgoingSession::read_response()
+template <typename T>
+void HTTPSession<T>::OutgoingSession::read_response()
 {
-    auto self = shared_from_this();
+    auto self = this->shared_from_this();
 
     stream_.async_read_some(
         asio::buffer(buffer_),
@@ -222,7 +238,8 @@ void HTTPSession::OutgoingSession::read_response()
             }));
 }
 
-void HTTPSession::OutgoingSession::generate_request()
+template <typename T>
+void HTTPSession<T>::OutgoingSession::generate_request()
 {
     std::string user_agent;
     auto it = context_.request.headers.find("User-Agent");
@@ -241,7 +258,8 @@ void HTTPSession::OutgoingSession::generate_request()
                                 context_.request.target, HOST, user_agent);
 }
 
-bool HTTPSession::OutgoingSession::init_ssl()
+template <typename T>
+bool HTTPSession<T>::OutgoingSession::init_ssl()
 {
     // Verify server certificate (important)
     stream_.set_verify_mode(asio::ssl::verify_peer);
@@ -255,3 +273,7 @@ bool HTTPSession::OutgoingSession::init_ssl()
     }
     return result;
 }
+
+// explicit specialization:
+template class HTTPSession<tcp::socket>;
+template class HTTPSession<asio::ssl::stream<tcp::socket>>;
