@@ -87,45 +87,45 @@ target_link_libraries(${app} PRIVATE asio
 
 target_compile_definitions(${app} PRIVATE
     APP_NAME="${app}"
-    APP_VERSION="1.0.0"
-    DEFAULT_HTTP_PORT=8080)
+    APP_VERSION="1.0.1"
+    DEFAULT_HTTP_PORT=8080
+    DEFAULT_HTTPS_PORT=8443)
 
 
 add_subdirectory(tests)
 
-
 #if (WIN32)
+   
+    install(TARGETS ${app} DESTINATION bin)
 
-install(TARGETS ${app} DESTINATION bin)
-
-# install SSL dymnmic libraries
-install(
-    DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/${CMAKE_BUILD_TYPE}/.
-    DESTINATION bin
-    FILES_MATCHING
-    PATTERN "*.dll"
-)
-
-# download and install SSL certs
-set(CA_CERT_URL "https://curl.se/ca/cacert.pem")
-set(CA_CERT_FILE "${CMAKE_BINARY_DIR}/cacert.pem")
-
-if(NOT EXISTS "${CA_CERT_FILE}")
-    message(STATUS "Downloading CA bundle...")
-    file(DOWNLOAD
-        ${CA_CERT_URL}
-        ${CA_CERT_FILE}
-        SHOW_PROGRESS
-        TLS_VERIFY ON
+    # install SSL dymnmic libraries
+    install(
+        DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/${CMAKE_BUILD_TYPE}/.
+        DESTINATION bin
+        FILES_MATCHING
+        PATTERN "*.dll"
     )
-endif()
 
-install(FILES
-    ${CMAKE_CURRENT_BINARY_DIR}/cacert.pem
-    DESTINATION bin/certs)
+    # download and install SSL certs
+    set(CA_CERT_URL "https://curl.se/ca/cacert.pem")
+    set(CA_CERT_FILE "${CMAKE_BINARY_DIR}/cacert.pem")
+
+    if(NOT EXISTS "${CA_CERT_FILE}")
+        message(STATUS "Downloading CA bundle...")
+        file(DOWNLOAD
+            ${CA_CERT_URL}
+            ${CA_CERT_FILE}
+            SHOW_PROGRESS
+            TLS_VERIFY ON
+        )
+    endif()
+
+    install (FILES 
+             ${CMAKE_CURRENT_BINARY_DIR}/cacert.pem
+             DESTINATION bin/certs)
 
 #elseif
 
-install(TARGETS ${app} DESTINATION bin)
-
+    install(TARGETS ${app} DESTINATION bin)
+    
 #endif

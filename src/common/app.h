@@ -2,6 +2,7 @@
 
 constexpr auto app_name = APP_NAME;
 constexpr uint16_t default_http_port = DEFAULT_HTTP_PORT;
+constexpr uint16_t default_https_port = DEFAULT_HTTPS_PORT;
 
 struct ClArguments
 {

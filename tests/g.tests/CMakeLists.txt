@@ -18,12 +18,14 @@ add_executable(${test_module} ${tests_src_files} ${h_files})
 target_link_libraries(${test_module} PRIVATE asio
   cxxopts
   spdlog::spdlog
+  OpenSSL::SSL
   GTest::gtest_main)
 
 target_compile_definitions(${test_module} PRIVATE
   APP_NAME="${test_module}"
-  APP_VERSION="1.0.0"
-  DEFAULT_HTTP_PORT=8080)
+  APP_VERSION="1.0.1"
+  DEFAULT_HTTP_PORT=8080
+  DEFAULT_HTTPS_PORT=8443)
 
 if(UNIX)
   target_compile_options(${test_module} PRIVATE -Wno-write-strings)

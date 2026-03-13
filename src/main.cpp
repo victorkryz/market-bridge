@@ -37,7 +37,7 @@ int main(int argc, char* argv[])
 
         gl_logger = init_logger(args.logger_type, args.log_level);
 
-        Server server(args.port, args.running_mode);
+        Server server(args.port, default_https_port, args.running_mode);
         server.run();
     }
     catch (const std::exception& e)

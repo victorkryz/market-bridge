@@ -3,19 +3,10 @@
 #include <asio.hpp>
 #include <asio/io_context.hpp>
 #include <asio/ip/tcp.hpp>
-
-#include <asio/co_spawn.hpp>
-#include <asio/detached.hpp>
-#include <asio/use_awaitable.hpp>
-
+#include <asio/ssl.hpp>
 #include <atomic>
 
-
-using asio::use_awaitable;
-using asio::awaitable;
-namespace this_coro = asio::this_coro;
-
-
+#include "common/session.h"
 
 enum class ServerRunningMode
 {
@@ -33,18 +24,36 @@ class Server
     }
 
 public:
-    Server(unsigned short port, ServerRunningMode running_mode = ServerRunningMode::Persistent);
+    Server(unsigned short http_port, unsigned short https_port, ServerRunningMode running_mode = ServerRunningMode::Persistent);
     int run();
     void schedule_shutdown();
 
 private:
-    void listener();
+    void listener(asio::ip::tcp::acceptor& acceptor, std::function<void(asio::ip::tcp::socket)> completion_handler);
+    template <typename T>
+    void launch_http_session(T&& stream);
     void dispatch_request(asio::ip::tcp::socket socket);
+    void init_acceptors();
+    void init_ssl_context();
+    void install_listeners();
     void install_signals_handler();
+    void ssl_handshake(asio::ip::tcp::socket&& socket);
+    void on_ssl_handshake_done(asio::ssl::stream<asio::ip::tcp::socket>&& stream);
+    void stop_sessions();
+    void close_acceptors();
 
+private:
     ServerRunningMode running_mode_;
     asio::io_context io_;
-    asio::ip::tcp::acceptor acceptor_;
+    asio::ssl::context ssl_context_;
+    bool ssl_context_init_done_ = false;
+    uint16_t http_port_;
+    uint16_t https_port_;
+    std::unique_ptr<asio::ip::tcp::acceptor> http_acceptor_;
+    std::unique_ptr<asio::ip::tcp::acceptor> https_acceptor_;
     asio::signal_set signals_;
-    bool shutdown_pending_ = false;
+    std::atomic<bool> shutdown_pending_ = false;
+    std::vector<std::weak_ptr<Session>> sessions_;
+    std::string cert_file_path = "cert/server.crt";
+    std::string private_key_path_path = "cert/server.key";
 };

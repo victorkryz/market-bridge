@@ -1,7 +1,5 @@
 #pragma once
 
-#include "common/ec-handler.h"
-#include "utils/http-helper.h"
 #include <asio.hpp>
 #include <asio/any_io_executor.hpp>
 #include <asio/io_context.hpp>
@@ -12,20 +10,25 @@
 #include <asio/awaitable.hpp>
 #include <asio/use_awaitable.hpp>
 
-#include <iostream>
-#include <sstream>
+#include "common/ec-handler.h"
+#include "utils/http-helper.h"
 #include <string>
+
+#include "common/session.h"
 
 using asio::ip::tcp;
 
-using asio::use_awaitable;
 using asio::awaitable;
+using asio::use_awaitable;
 namespace this_coro = asio::this_coro;
 
-
-class HTTPSession : public std::enable_shared_from_this<HTTPSession>
+template <typename T>
+class HTTPSession : public Session,
+                    public std::enable_shared_from_this<HTTPSession<T>>
 {
     constexpr static size_t buffer_size = 4096;
+
+    using TSession = HTTPSession<T>;
 
     struct Context
     {
@@ -36,7 +39,8 @@ class HTTPSession : public std::enable_shared_from_this<HTTPSession>
         const uint64_t& session_id;
     };
 
-    class OutgoingSession : public std::enable_shared_from_this<OutgoingSession>
+    class OutgoingSession : public Session,
+                            public std::enable_shared_from_this<OutgoingSession>
     {
     public:
         inline static const std::string HOST = "api.binance.com";
@@ -47,9 +51,16 @@ class HTTPSession : public std::enable_shared_from_this<HTTPSession>
             : outer_session_(outer_session), context_(outer_session->get_context()),
               resolver_(context_.io), stream_(context_.io, context_.tls_context) {}
         ~OutgoingSession();
-        awaitable<void> start();
+
+        void start() override;
+        void stop() override {};
+        uint64_t get_id() override
+        {
+            return context_.session_id;
+        }
 
     protected:
+        awaitable<void> start_impl();
         awaitable<void> on_connect();
 
     private:
@@ -60,7 +71,7 @@ class HTTPSession : public std::enable_shared_from_this<HTTPSession>
         void generate_request();
 
     private:
-        std::shared_ptr<HTTPSession> outer_session_;
+        std::shared_ptr<TSession> outer_session_;
         Context context_;
         tcp::resolver resolver_;
         asio::ssl::stream<tcp::socket> stream_;
@@ -70,11 +81,12 @@ class HTTPSession : public std::enable_shared_from_this<HTTPSession>
     };
 
 public:
-    HTTPSession(asio::io_context& io_, asio::ip::tcp::socket&& socket, uint64_t id);
-    ~HTTPSession();
+    HTTPSession(asio::io_context& io_, T&& socket, uint64_t id);
+    ~HTTPSession() override;
 
-    void start();
-    uint64_t get_id()
+    void start() override;
+    void stop() override;
+    uint64_t get_id() override
     {
         return id_;
     }
@@ -87,14 +99,15 @@ protected:
     }
     void on_request(HttpRequest request);
     awaitable<void> on_outgoing_session_completed(const asio::error_code& ec, std::string response);
+    void shutdown();
 
 private:
     bool init_tls_context();
     awaitable<void> obtain_header();
-    
+
 private:
     asio::io_context& io_;
-    tcp::socket socket_;
+    T http_stream_;
     HttpRequest request_;
     asio::strand<asio::any_io_executor> strand_;
     asio::streambuf buffer_;
@@ -103,4 +116,5 @@ private:
     asio::ssl::context tls_context_;
     std::string response_;
     uint64_t id_{0};
+    bool stopped_ = false;
 };
