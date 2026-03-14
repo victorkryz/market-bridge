@@ -52,7 +52,7 @@ class HTTPSession : public Session,
 
     protected:
         void on_connect();
-
+        
     private:
         bool init_ssl();
         void connect(const tcp::resolver::results_type& endpoints);
@@ -92,6 +92,7 @@ protected:
 private:
     bool init_tls_context();
     void obtain_header();
+    void shutdown();
 
 private:
     asio::io_context& io_;

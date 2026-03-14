@@ -66,10 +66,7 @@ void Server::listener(asio::ip::tcp::acceptor& acceptor,
                 gl_logger->info("Server accepted connection");
 
                 if (completion_handler)
-                {
-                    gl_logger->info("Before invoke");
                     std::invoke(completion_handler, std::move(socket));
-                }
             }
 
             if ((running_mode_ == ServerRunningMode::Persistent) && !shutdown_pending_)

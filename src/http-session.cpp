@@ -6,6 +6,15 @@
 
 #include "logs/logger.h"
 
+template <typename Stream>
+auto& lowest_socket(Stream& stream)
+{
+    if constexpr (std::is_same_v<Stream, tcp::socket>)
+        return stream;
+    else if constexpr (std::is_same_v<Stream, asio::ssl::stream<tcp::socket>>)
+        return stream.lowest_layer();
+}
+
 template <typename T>
 HTTPSession<T>::HTTPSession(asio::io_context& io, T&& socket, uint64_t id)
     : io_(io), http_stream_(std::move(socket)), strand_(asio::make_strand(http_stream_.get_executor())),
@@ -123,12 +132,21 @@ void HTTPSession<T>::on_outgoing_session_completed(const asio::error_code& ec, s
         asio::bind_executor(strand_,
                             [this, self](const asio::error_code& ec, std::size_t)
                             {
-                                asio::error_code ec_formal;
+                                check_ec(ec, __func__);
 
-                                if constexpr (std::is_same_v<T, tcp::socket>)
-                                    auto rc = http_stream_.shutdown(tcp::socket::shutdown_both, ec_formal);
+                                shutdown();
                             }));
 };
+
+template <typename T>
+void HTTPSession<T>::shutdown()
+{
+    auto& socket = lowest_socket<T>(http_stream_);
+
+    asio::error_code ec_formal;
+    auto rc = socket.shutdown(tcp::socket::shutdown_both, ec_formal);
+    socket.close();
+}
 
 template <typename T>
 HTTPSession<T>::OutgoingSession::~OutgoingSession()

@@ -22,12 +22,12 @@ HandshakeSession::HandshakeSession(HandshakeSession::ssl_stream&& stream,
 
 HandshakeSession::~HandshakeSession()
 {
-    gl_logger->info("Handshake session finished!");
+    gl_logger->info("Handshake session finished, id: {}", id_);
 }
 
 void HandshakeSession::start()
 {
-    gl_logger->info("Handshake session started!");
+    gl_logger->info("Handshake session started, id: {}", id_);
 
     handshake_impl();
 }
@@ -42,7 +42,7 @@ void HandshakeSession::handshake_impl()
         {
             if (check_ec(ec, __func__))
             {
-                gl_logger->info("Handshake succeeded!");
+                gl_logger->info("Handshake succeeded, id: {}", id_);
 
                 if (handshake_completion_notifier_)
                     std::invoke(handshake_completion_notifier_, std::move(stream_));
