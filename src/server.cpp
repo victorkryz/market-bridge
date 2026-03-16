@@ -14,14 +14,13 @@
 
 void ssl_info_callback(const SSL* ssl, int where, int ret);
 
-Server::Server(unsigned short port, unsigned short https_port,
-               ServerRunningMode running_mode) : running_mode_(running_mode),
-                                                 signals_(io_, SIGINT, SIGTERM),
-                                                 ssl_context_(asio::ssl::context::tls_server),
-                                                 http_port_(port), https_port_(https_port)
+Server::Server(const Config& cfg) : running_mode_(cfg.running_mode),
+                                    signals_(io_, SIGINT, SIGTERM),
+                                    ssl_context_(asio::ssl::context::tls_server),
+                                    http_port_(cfg.http_port), https_port_(cfg.https_port),
+                                    cert_path(cfg.srv_cert_path),
+                                    private_key_path(cfg.srv_private_key_path)
 {
-    cert_file_path = "cert/server.crt";
-    private_key_path_path = "cert/server.key";
 }
 
 int Server::run()
@@ -164,10 +163,10 @@ void Server::init_ssl_context()
         asio::ssl::context::no_sslv3 |
         asio::ssl::context::single_dh_use);
 
-    if (!cert_file_path.empty())
-        ssl_context_.use_certificate_chain_file(cert_file_path);
-    if (!private_key_path_path.empty())
-        ssl_context_.use_private_key_file(private_key_path_path, asio::ssl::context::pem);
+    if (!cert_path.empty())
+        ssl_context_.use_certificate_chain_file(cert_path);
+    if (!private_key_path.empty())
+        ssl_context_.use_private_key_file(private_key_path, asio::ssl::context::pem);
 
     SSL_CTX_set_info_callback(ssl_context_.native_handle(), ssl_info_callback);
 

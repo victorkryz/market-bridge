@@ -9,6 +9,7 @@
 #include "server.h"
 #include "common/app.h"
 #include "spdlog/common.h"
+#include <string_view>
 // clang-format on
 
 bool gl_show_usage_called(false);
@@ -21,6 +22,8 @@ void show_usage(const cxxopts::Options& options)
 struct TestBase
 {
     inline static constexpr LoggerType default_log_type = LoggerType::Console;
+    inline static constexpr std::string_view default_srv_cert_path = "cert/server.crt";
+    inline static constexpr std::string_view default_srv_private_key_path = "cert/server.key";
 
     void SetUp()
     {
@@ -29,7 +32,7 @@ struct TestBase
 
     void TearDown() {};
 
-    ClArguments out_args_;
+    Config out_args_;
     std::vector<char*> in_args_;
 };
 
@@ -104,10 +107,13 @@ TEST_F(CommandLineTS, EmptyLineTest)
 
     EXPECT_EQ(exit_code, 0);
 
-    EXPECT_EQ(out_args_.port, default_http_port);
+    EXPECT_EQ(out_args_.http_port, default_http_port);
+    EXPECT_EQ(out_args_.https_port, default_https_port);
     EXPECT_EQ(out_args_.log_level, spdlog::level::level_enum::info);
     EXPECT_EQ(out_args_.running_mode, ServerRunningMode::Persistent);
     EXPECT_EQ(out_args_.logger_type, default_log_type);
+    EXPECT_EQ(out_args_.srv_cert_path, default_srv_cert_path);
+    EXPECT_EQ(out_args_.srv_private_key_path, default_srv_private_key_path);
 
     EXPECT_FALSE(usage_requested);
     EXPECT_FALSE(gl_show_usage_called);
@@ -125,19 +131,71 @@ TEST_F(CommandLineTS, HelpArgTest)
     EXPECT_TRUE(gl_show_usage_called);
 }
 
-TEST_F(CommandLineTS, PortArgTest)
+TEST_F(CommandLineTS, HttpPortArgTest)
 {
     constexpr auto in_port = 8585u;
     std::string s_port = testing::PrintToString(in_port);
 
-    in_args_ = {"", "--port", s_port.data()};
+    in_args_ = {"", "--http-port", s_port.data()};
 
     const auto [exit_code, usage_requested] =
         process_arguments(in_args_.size(), in_args_.data(), out_args_);
 
     EXPECT_EQ(exit_code, 0);
 
-    EXPECT_EQ(out_args_.port, in_port);
+    EXPECT_EQ(out_args_.http_port, in_port);
+    EXPECT_EQ(out_args_.https_port, default_https_port);
+    EXPECT_EQ(out_args_.log_level, spdlog::level::level_enum::info);
+    EXPECT_EQ(out_args_.running_mode, ServerRunningMode::Persistent);
+    EXPECT_EQ(out_args_.logger_type, default_log_type);
+    EXPECT_EQ(out_args_.srv_cert_path, default_srv_cert_path);
+    EXPECT_EQ(out_args_.srv_private_key_path, default_srv_private_key_path);
+
+    EXPECT_FALSE(usage_requested);
+    EXPECT_FALSE(gl_show_usage_called);
+}
+
+TEST_F(CommandLineTS, HttpsPortArgTest)
+{
+    constexpr auto in_port = 443u;
+    std::string s_port = testing::PrintToString(in_port);
+
+    in_args_ = {"", "--https-port", s_port.data()};
+
+    const auto [exit_code, usage_requested] =
+        process_arguments(in_args_.size(), in_args_.data(), out_args_);
+
+    EXPECT_EQ(exit_code, 0);
+
+    EXPECT_EQ(out_args_.https_port, in_port);
+    EXPECT_EQ(out_args_.http_port, default_http_port);
+    EXPECT_EQ(out_args_.log_level, spdlog::level::level_enum::info);
+    EXPECT_EQ(out_args_.running_mode, ServerRunningMode::Persistent);
+    EXPECT_EQ(out_args_.logger_type, default_log_type);
+    EXPECT_EQ(out_args_.srv_cert_path, default_srv_cert_path);
+    EXPECT_EQ(out_args_.srv_private_key_path, default_srv_private_key_path);
+
+    EXPECT_FALSE(usage_requested);
+    EXPECT_FALSE(gl_show_usage_called);
+}
+
+TEST_F(CommandLineTS, CertPathArgTest)
+{
+    std::string s_cert = "/etc/ssl/certs/server.crt",
+                s_private_key = "/etc/ssl/certs/server.key";
+
+    in_args_ = {"", "--cert-path", s_cert.data(), "--private-key", s_private_key.data()};
+
+    const auto [exit_code, usage_requested] =
+        process_arguments(in_args_.size(), in_args_.data(), out_args_);
+
+    EXPECT_EQ(exit_code, 0);
+
+    EXPECT_EQ(out_args_.srv_cert_path, s_cert);
+    EXPECT_EQ(out_args_.srv_private_key_path, s_private_key);
+
+    EXPECT_EQ(out_args_.http_port, default_http_port);
+    EXPECT_EQ(out_args_.https_port, default_https_port);
     EXPECT_EQ(out_args_.log_level, spdlog::level::level_enum::info);
     EXPECT_EQ(out_args_.running_mode, ServerRunningMode::Persistent);
     EXPECT_EQ(out_args_.logger_type, default_log_type);
@@ -166,7 +224,7 @@ TEST_P(LogLevel_TS, LogLevelArg)
         process_arguments(in_args_.size(), in_args_.data(), out_args_);
 
     EXPECT_EQ(exit_code, 0);
-    EXPECT_EQ(out_args_.port, default_http_port);
+    EXPECT_EQ(out_args_.http_port, default_http_port);
     EXPECT_EQ(out_args_.running_mode, ServerRunningMode::Persistent);
     EXPECT_EQ(out_args_.logger_type, default_log_type);
 
@@ -192,7 +250,7 @@ TEST_P(LogType_TS, LoggerType)
         process_arguments(in_args_.size(), in_args_.data(), out_args_);
 
     EXPECT_EQ(exit_code, 0);
-    EXPECT_EQ(out_args_.port, default_http_port);
+    EXPECT_EQ(out_args_.http_port, default_http_port);
     EXPECT_EQ(out_args_.running_mode, ServerRunningMode::Persistent);
     EXPECT_EQ(out_args_.log_level, spdlog::level::level_enum::info);
 
@@ -217,7 +275,7 @@ TEST_P(RunMode_TS, RunMode)
         process_arguments(in_args_.size(), in_args_.data(), out_args_);
 
     EXPECT_EQ(exit_code, 0);
-    EXPECT_EQ(out_args_.port, default_http_port);
+    EXPECT_EQ(out_args_.http_port, default_http_port);
     EXPECT_EQ(out_args_.log_level, spdlog::level::level_enum::info);
     EXPECT_EQ(out_args_.logger_type, default_log_type);
 
