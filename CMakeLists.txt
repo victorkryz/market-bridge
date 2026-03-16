@@ -122,7 +122,7 @@ add_subdirectory(tests)
 
     install (FILES 
              ${CMAKE_CURRENT_BINARY_DIR}/cacert.pem
-             DESTINATION bin/certs)
+             DESTINATION bin/cert)
 
 #elseif
 

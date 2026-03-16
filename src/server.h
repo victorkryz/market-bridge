@@ -6,13 +6,9 @@
 #include <asio/ssl.hpp>
 #include <atomic>
 
+#include "common/config.h"
 #include "common/session.h"
 
-enum class ServerRunningMode
-{
-    Persistent,   // Default: handle multiple requests
-    SingleRequest // Handle exactly one request, then stop
-};
 
 class Server
 {
@@ -24,7 +20,7 @@ class Server
     }
 
 public:
-    Server(unsigned short http_port, unsigned short https_port, ServerRunningMode running_mode = ServerRunningMode::Persistent);
+    Server(const Config& cfg);
     int run();
     void schedule_shutdown();
 
@@ -54,6 +50,6 @@ private:
     asio::signal_set signals_;
     std::atomic<bool> shutdown_pending_ = false;
     std::vector<std::weak_ptr<Session>> sessions_;
-    std::string cert_file_path = "cert/server.crt";
-    std::string private_key_path_path = "cert/server.key";
+    std::string cert_path;
+    std::string private_key_path;
 };

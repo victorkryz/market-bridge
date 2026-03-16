@@ -15,12 +15,12 @@ HandshakeSession::HandshakeSession(HandshakeSession::ssl_stream&& stream,
 
 HandshakeSession::~HandshakeSession()
 {
-    gl_logger->info("Handshake session finished!");
+    gl_logger->info("Handshake session finished, id: {}", id_);
 }
 
 void HandshakeSession::start()
 {
-    gl_logger->info("Handshake session started!");
+    gl_logger->info("Handshake session started, id: {}", id_);
 
     auto strand = asio::make_strand(stream_.get_executor());
     asio::co_spawn(strand, start_impl(), asio::detached);
@@ -35,7 +35,7 @@ awaitable<void> HandshakeSession::start_impl()
 
     if (check_ec(ec, __func__))
     {
-        gl_logger->info("Handshake succeeded!");
+        gl_logger->info("Handshake succeeded!, session id: {}", id_);
 
         if (handshake_completion_notifier_)
             std::invoke(handshake_completion_notifier_, std::move(stream_));

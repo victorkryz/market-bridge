@@ -15,7 +15,7 @@ TEST_SUITE("testing the command line processor suite")
 {
     TEST_CASE("testing the command line processor case")
     {
-        ClArguments args;
+        Config cfg;
         gl_show_usage_called = false;
 
         SUBCASE("empty command line")
@@ -23,13 +23,13 @@ TEST_SUITE("testing the command line processor suite")
             std::vector<char*> in_arguments = {"app"};
 
             const auto [exit_code, usage_requested] =
-                process_arguments(in_arguments.size(), in_arguments.data(), args);
+                process_arguments(in_arguments.size(), in_arguments.data(), cfg);
 
             CHECK(exit_code == 0);
 
-            CHECK(args.port == default_http_port);
-            CHECK(args.log_level == spdlog::level::level_enum::info);
-            CHECK(args.running_mode == ServerRunningMode::Persistent);
+            CHECK(cfg.http_port == default_http_port);
+            CHECK(cfg.log_level == spdlog::level::level_enum::info);
+            CHECK(cfg.running_mode == ServerRunningMode::Persistent);
 
             CHECK(!usage_requested);
             CHECK(!gl_show_usage_called);
@@ -40,7 +40,7 @@ TEST_SUITE("testing the command line processor suite")
             std::vector<char*> in_arguments = {"app", "--help"};
 
             const auto [exit_code, usage_requested] =
-                process_arguments(in_arguments.size(), in_arguments.data(), args);
+                process_arguments(in_arguments.size(), in_arguments.data(), cfg);
 
             CHECK(exit_code == 0);
             CHECK(usage_requested);
@@ -51,16 +51,16 @@ TEST_SUITE("testing the command line processor suite")
             constexpr auto in_port = 8585u;
             doctest::String s = doctest::toString(in_port);
 
-            std::vector<char*> in_arguments = {"app", "--port", s.c_str()};
+            std::vector<char*> in_arguments = {"app", "--http-port", s.c_str()};
 
             const auto [exit_code, usage_requested] =
-                process_arguments(in_arguments.size(), in_arguments.data(), args);
+                process_arguments(in_arguments.size(), in_arguments.data(), cfg);
 
             CHECK(exit_code == 0);
 
-            CHECK(args.port == in_port);
-            CHECK(args.log_level == spdlog::level::level_enum::info);
-            CHECK(args.running_mode == ServerRunningMode::Persistent);
+            CHECK(cfg.http_port == in_port);
+            CHECK(cfg.log_level == spdlog::level::level_enum::info);
+            CHECK(cfg.running_mode == ServerRunningMode::Persistent);
 
             CHECK(!usage_requested);
             CHECK(!gl_show_usage_called);

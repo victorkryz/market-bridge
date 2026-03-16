@@ -103,7 +103,7 @@ bool HTTPSession<T>::init_tls_context()
         tls_context_.set_verify_callback(asio::ssl::host_name_verification(OutgoingSession::HOST));
 
 #ifdef _WIN32
-        const std::string cert_path = "certs\\cacert.pem";
+        const std::string cert_path = "cert\\cacert.pem";
         failure_hints = fmt::format("(possibly SSL certificate not found ({})", cert_path);
 
         tls_context_.load_verify_file(cert_path);
