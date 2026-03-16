@@ -50,13 +50,19 @@ For example:
 ### Command line arguments:
 
 ```
--h, --help            print usage
--p, --port arg        specify port (default: 8080)
--o, --log-output arg  specify logging output (file, console) (default: console)
-                      (in case 'file' is set the log files located in ~/.local/share/market-bridge)
--l, --log_level arg   specify log level (error, warning, trace, debug, 
-                                         critical, off) (default: info)
-
+-h, --help             print usage
+-p, --http-port arg    specify http port (default: 8080)
+-s, --https-port arg   specify port (default: 8443)
+-o, --log-output arg   specify logging output (file, console) (default: 
+                        console)
+-r, --run-mode arg     specify running mode (persist, single-request) 
+                        (default: persist)
+-l, --log-level arg    specify log level (error, warning, trace, debug, 
+                        critical, off) (default: info)
+-c, --cert-path arg    specify https server certificate path (default: 
+                        cert/server.crt)
+-k, --private-key arg  specify https server private key path (default: 
+                        cert/server.key)
 ```
 
 ### Samples of usage:
