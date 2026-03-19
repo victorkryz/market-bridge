@@ -13,6 +13,7 @@ env:
   BUILD_TYPE: Release
   BUILD_DIRECTORY: build
   INSTALL_DIRECTORY: dist
+  CERTIFICATE_DIRECTORY: cert
   APP_NAME: market-bridge
 
 jobs:
@@ -39,6 +40,19 @@ jobs:
 
     - name: Install
       run: cmake --install ${{github.workspace}}/${{env.BUILD_DIRECTORY}} --prefix ${{github.workspace}}/${{env.INSTALL_DIRECTORY}}
+
+    - name: Check OpenSSL
+      run: |
+        which openssl
+        openssl version
+
+    - name: Generate self-signed HTTPS test certificates
+      working-directory: ${{github.workspace}}/${{env.INSTALL_DIRECTORY}}
+      run: |
+        mkdir ${{env.INSTALL_DIRECTORY}}
+        cd ${{env.INSTALL_DIRECTORY}}
+        openssl req -x509 -newkey rsa:2048 -days 1 -keyout server.key -out server.crt -nodes -subj "/CN=localhost"
+        ls -l .
 
     - name: Run ${{env.APP_NAME}}
       working-directory: ${{github.workspace}}/${{env.INSTALL_DIRECTORY}}
