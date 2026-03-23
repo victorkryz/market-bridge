@@ -45,3 +45,6 @@
 /build-release
 
 
+*.key
+cert/
+

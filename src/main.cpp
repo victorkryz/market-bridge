@@ -23,21 +23,21 @@ int main(int argc, char* argv[])
     int result(0);
     try
     {
-        ClArguments args;
+        Config cfg;
 
         if (argc > 1)
         {
             const auto [exit_code, usage_requested] =
-                process_arguments(argc, argv, args);
+                process_arguments(argc, argv, cfg);
             if (exit_code != 0)
                 return exit_code;
             else if (usage_requested)
                 return 0;
         }
 
-        gl_logger = init_logger(args.logger_type, args.log_level);
+        gl_logger = init_logger(cfg.logger_type, cfg.log_level);
 
-        Server server(args.port, args.running_mode);
+        Server server(cfg);
         server.run();
     }
     catch (const std::exception& e)
