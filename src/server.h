@@ -9,7 +9,6 @@
 #include "common/config.h"
 #include "common/session.h"
 
-
 class Server
 {
     static inline std::atomic<uint64_t> session_id_gen{1};
@@ -20,7 +19,7 @@ class Server
     }
 
 public:
-    Server(const Config& cfg);
+    explicit Server(const Config& cfg);
     int run();
     void schedule_shutdown();
 
@@ -37,12 +36,13 @@ private:
     void on_ssl_handshake_done(asio::ssl::stream<asio::ip::tcp::socket>&& stream);
     void stop_sessions();
     void close_acceptors();
-    
+    void register_session(std::shared_ptr<Session> session);
+
 private:
     ServerRunningMode running_mode_;
     asio::io_context io_;
     asio::ssl::context ssl_context_;
-    bool ssl_context_init_done_ = false;
+    std::once_flag ssl_context_init_flag_;
     uint16_t http_port_;
     uint16_t https_port_;
     std::unique_ptr<asio::ip::tcp::acceptor> http_acceptor_;
@@ -50,7 +50,7 @@ private:
     asio::signal_set signals_;
     std::atomic<bool> shutdown_pending_ = false;
     std::vector<std::weak_ptr<Session>> sessions_;
+    std::mutex session_mtx_;
     std::string cert_path;
     std::string private_key_path;
 };
-

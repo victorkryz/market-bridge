@@ -10,22 +10,25 @@
 ![Windows](https://img.shields.io/badge/Windows-11-blue?logo=Windows)
 
 
-**Market-bridge**  is a lightweight, high-performance C++ proxy server for the Binance Open API, implemented using the standalone Asio library.
-It acts as a transparent gateway that forwards client requests to Binance and send responses back without modification.
+**Market-bridge** is a lightweight, high-performance C++ proxy server for the Binance Open REST GET API, 
+implemented using the standalone Asio library.
+It acts as a transparent gateway that forwards client REST GET requests to Binance and 
+returns the responses without modification.
 
 ### The proxy execution workflow:
 
 -  The proxy listens on localhost:8080 (by default)
--  Accepts and parsers incoming HTTP requests
--  Parsers API request
+-  Accepts and parses incoming HTTP(S) requests
+-  Parses the API request
 -  Establishes outgoing connection
 -  Forwards client's HTTP payload to api.binance.com 
    (the original request's part is preserved)
--  Returns Binance response to the client
+-  Returns Binance response to the client  
+Note: Only HTTP(S) GET requests are currently supported.
 
 
 The proxy mirrors Binance Open API endpoints through a local proxy interface.  
-When the proxy is running on localhost:8080, any request directly sent to: https://api.binance.com
+When the proxy is running on localhost:8080, GET request directly sent to: https://api.binance.com
 can instead be redirected to: http://localhost:8080.  
 The request path remains unchanged.
 
@@ -36,15 +39,25 @@ For example:
 ``` 
   curl https://api.binance.com/api/v3/ping
   curl https://api.binance.com/api/v3/time
-  curl https://api.binance.com/api/v3/ticker/price
+  curl https://api.binance.com/api/v3/ticker/price | jq
 ```
 - respective proxy calls:
 
 ``` 
   curl http://localhost:8080/api/v3/ping
   curl http://localhost:8080/api/v3/time
-  curl http://localhost:8080/api/v3/ticker/price
+  curl http://localhost:8080/api/v3/ticker/price | jq
 ```
+or HTTPS calls if certificates are provided, at least self-signed ones  
+(see .github/workflows/linux-workflow.yml how to generate and inject certificates using openssl)
+
+```
+  curl -k https://localhost:8443/api/v3/ping
+  curl -k https://localhost:8443/api/v3/time
+  curl -k https://localhost:8443/api/v3/ticker/price  | jq
+```
+[!TIP]
+*install **jq** utility to see nice-formatted json response*
 
 
 ### Command line arguments:
@@ -103,7 +116,7 @@ To build the project under Linux OS use build.sh script with build type specific
 
 #### Branches:
 
- - **main** -  C++17 implementation using ASIO asynchronous APIs with lambda handlers
+ - **main** -  C++17 implementation using ASIO asynchronous APIs with lambda handlers (in-progress) 
  - **dev/cpp20** - C++20 implementation using ASIO coroutines (in-progress)
 
 
@@ -142,7 +155,7 @@ The proxy successfully handled 1000 requests with 50 concurrent clients
 
 The proxy has been tested using the Python project 
 [*order-book-viewer-py*](https://github.com/victorkryz/order-book-viewer-py), which successfully  
-retrieved order-book data via the proxy: border-book-viewer-py  →  market-bridge proxy  →  api.binance.com
+retrieved order-book data via the proxy: order-book-viewer-py  →  market-bridge proxy  →  api.binance.com
 
 ```
   python order-book-view.py --host http://localhost:8080

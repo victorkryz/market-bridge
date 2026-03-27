@@ -11,11 +11,14 @@
 #include <string>
 
 #include "common/session.h"
+#include "utils/session-helper.h"
 
 using asio::ip::tcp;
+using session::helper::SessionBase;
 
 template <typename T>
 class HTTPSession : public Session,
+                    public SessionBase<HTTPSession<T>>,
                     public std::enable_shared_from_this<HTTPSession<T>>
 {
     constexpr static size_t buffer_size = 4096;
@@ -44,30 +47,36 @@ class HTTPSession : public Session,
         ~OutgoingSession();
 
         void start() override;
-        void stop() override {};
+        void stop() override;
         uint64_t get_id() override
-        {
+        {                                                                                       
             return context_.session_id;
         }
 
     protected:
-        void on_connect();
-        
+        void on_resolve(const asio::error_code& ec, tcp::resolver::results_type results);
+        void on_connect(const asio::error_code& ec);
+        void on_handshake(const asio::error_code& ec);
+        void on_write(const asio::error_code& ec, std::size_t);
+        void on_read(const asio::error_code& ec, std::size_t n);
+
     private:
         bool init_ssl();
         void connect(const tcp::resolver::results_type& endpoints);
         void send_request();
         void read_response();
         void generate_request();
+        void on_failure(const asio::error_code& ec);
 
     private:
         std::shared_ptr<TSession> outer_session_;
         Context context_;
-        tcp::resolver resolver_;
         asio::ssl::stream<tcp::socket> stream_;
+        tcp::resolver resolver_;
         std::array<char, buffer_size> buffer_;
         std::stringstream response_;
         std::string http_request_;
+        std::atomic<bool> stopped_ = false;
     };
 
 public:
@@ -78,16 +87,21 @@ public:
     void stop() override;
     uint64_t get_id() override
     {
-        return id_;
+        return SessionBase<TSession>::get_session_id();
     }
 
 protected:
     Context get_context()
     {
-        return {io_, strand_, tls_context_, request_, id_};
+        return {io_, strand_, tls_context_, request_, SessionBase<TSession>::id_};
     }
+
+    void on_connect(const asio::error_code& ec);
+    void on_read(const asio::error_code& ec, std::size_t n);
+    void on_write(const asio::error_code& ec, std::size_t n);
     void on_request(HttpRequest request);
-    void on_outgoing_session_completed(const asio::error_code& ec, std::string response);
+    void on_outgoing_session_completed(std::string response);
+    void on_outgoing_session_failed(const asio::error_code& ec);
 
 private:
     bool init_tls_context();
@@ -104,6 +118,6 @@ private:
     std::size_t content_length_ = 0;
     asio::ssl::context tls_context_;
     std::string response_;
-    uint64_t id_{0};
-    bool stopped_ = false;
+    std::weak_ptr<OutgoingSession> outgoing_session_;
+    std::once_flag socket_shutdown_flag_;
 };

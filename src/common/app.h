@@ -1,6 +1,9 @@
 #pragma once
 
+#include "logs/logger.h"
+#include "cxxopts.hpp"
 #include "config.h"
+
 
 constexpr auto app_name = APP_NAME;
 constexpr uint16_t default_http_port = DEFAULT_HTTP_PORT;
