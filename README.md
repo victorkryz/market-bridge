@@ -56,8 +56,8 @@ or HTTPS calls if certificates are provided, at least self-signed ones
   curl -k https://localhost:8443/api/v3/time
   curl -k https://localhost:8443/api/v3/ticker/price  | jq
 ```
-[!TIP]
-*install **jq** utility to see nice-formatted json response*
+> [!TIP]
+> *install **jq** utility to see nice-formatted json response*
 
 
 ### Command line arguments:
