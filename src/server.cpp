@@ -46,9 +46,11 @@ int Server::run()
 
 void Server::schedule_shutdown()
 {
-    gl_logger->info("Server, shutdown pending ...");
+    bool expected(false);
+    if (!shutdown_pending_.compare_exchange_strong(expected, true))
+        return;
 
-    shutdown_pending_ = true;
+    gl_logger->info("Server, shutdown pending ...");
 
     stop_sessions();
     close_acceptors();
@@ -75,11 +77,21 @@ void Server::listener(asio::ip::tcp::acceptor& acceptor,
 
 void Server::dispatch_request(asio::ip::tcp::socket socket)
 {
+    // TODO: rewrite this using async approach
+
     constexpr uint8_t tls_handshake_sign[] = {0x16, 0x03, 0x01};
 
     std::array<uint8_t, 3> buff;
+    asio::error_code ec;
     size_t n = socket.receive(asio::buffer(buff),
-                              asio::socket_base::message_peek);
+                              asio::socket_base::message_peek, ec);
+
+    if (!check_ec(ec, __func__) )
+    {
+       gl_logger->error("Cannot detect input protocol");
+       return; 
+    }
+
     // check if https protocol:
     if ((n >= buff.size()) &&
         (buff[0] == tls_handshake_sign[0] && buff[1] == tls_handshake_sign[1]))
@@ -94,17 +106,17 @@ void Server::dispatch_request(asio::ip::tcp::socket socket)
 
 void Server::ssl_handshake(asio::ip::tcp::socket&& socket)
 {
-    if (!ssl_context_init_done_)
-        init_ssl_context();
+    std::call_once(ssl_context_init_flag_, [this]
+                   { init_ssl_context(); });
 
     asio::ssl::stream<tcp::socket> ssl_stream(std::move(socket), ssl_context_);
     auto session = std::make_shared<HandshakeSession>(std::move(ssl_stream),
-                                                      ssl_context_,
                                                       generate_session_id(),
                                                       [this](asio::ssl::stream<tcp::socket> s)
                                                       {
                                                           on_ssl_handshake_done(std::move(s));
                                                       });
+    register_session(session);
     session->start();
 }
 
@@ -118,7 +130,7 @@ inline void Server::launch_http_session(T&& channel)
 {
     std::shared_ptr<HTTPSession<T>> session = std::make_shared<HTTPSession<T>>(io_, std::move(channel),
                                                                                generate_session_id());
-    sessions_.push_back(session);
+    register_session(session);
     session->start();
 }
 
@@ -169,33 +181,49 @@ void Server::init_ssl_context()
         ssl_context_.use_private_key_file(private_key_path, asio::ssl::context::pem);
 
     SSL_CTX_set_info_callback(ssl_context_.native_handle(), ssl_info_callback);
+}
 
-    ssl_context_init_done_ = true;
+void Server::register_session(std::shared_ptr<Session> session)
+{
+    std::lock_guard<std::mutex> lg(session_mtx_);
+    sessions_.push_back(session);
 }
 
 void Server::stop_sessions()
 {
-    for (auto it = sessions_.begin(); it != sessions_.end();)
+    std::vector<std::shared_ptr<Session>> active_sessions;
+
     {
-        if (auto session = it->lock())
+        std::lock_guard<std::mutex> lg(session_mtx_);
+
+        for (auto it = sessions_.begin(); it != sessions_.end();)
         {
-            session->stop();
-            ++it;
-        }
-        else
-        {
-            it = sessions_.erase(it);
+            if (auto session = it->lock())
+            {
+                active_sessions.push_back(session);
+                ++it;
+            }
+            else
+            {
+                it = sessions_.erase(it);
+            }
         }
     }
+
+    for (auto session : active_sessions)
+        session->stop();
 }
 
 void Server::close_acceptors()
 {
-    for (auto& acceptor : {std::move(http_acceptor_), std::move(https_acceptor_)})
-    {
-        if (acceptor)
-            acceptor->close();
-    }
+    if (http_acceptor_)
+        http_acceptor_->close();
+
+    if (https_acceptor_)
+        https_acceptor_->close();
+
+    http_acceptor_.reset();
+    https_acceptor_.reset();
 }
 
 void ssl_info_callback(const SSL* ssl, int where, int ret)
