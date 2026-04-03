@@ -78,10 +78,11 @@ market-bridge -o file
 
 ### Third-Party Libraries:
 
--  Standalone Asio (https://github.com/chriskohlhoff/asio)
+- Standalone Asio (https://github.com/chriskohlhoff/asio)
 - "Lightweight C++ command line option parser (https://github.com/jarro2783/cxxopts)
 - "spdlog" for logging (see: https://github.com/gabime/spdlog)
-- libssl-dev is required (sudo apt install libssl-dev)
+- OpenSSL development package is required   
+  (e.g. on Debian-based systems: sudo apt install libssl-dev)
 
 
 ### How to build:
