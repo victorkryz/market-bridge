@@ -76,6 +76,12 @@ or HTTPS calls if certificates are provided, at least self-signed ones
                         cert/server.crt)
 -k, --private-key arg  specify https server private key path (default: 
                         cert/server.key)
+-i, --ignore-cert-verification  ignore SSL certificate verification for 
+                                outgoing requests
+-H, --upstream-host arg  specify upstream host for proxying outgoing 
+                         requests (default: api.binance.com)
+-P, --upstream-port arg  specify upstream port for proxying outgoing 
+                         requests (default: 443)
 ```
 
 ### Samples of usage:
