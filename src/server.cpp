@@ -17,9 +17,8 @@ void ssl_info_callback(const SSL* ssl, int where, int ret);
 Server::Server(const Config& cfg) : running_mode_(cfg.running_mode),
                                     signals_(io_, SIGINT, SIGTERM),
                                     ssl_context_(asio::ssl::context::tls_server),
-                                    http_port_(cfg.http_port), https_port_(cfg.https_port),
-                                    cert_path(cfg.srv_cert_path),
-                                    private_key_path(cfg.srv_private_key_path)
+                                    cfg_(cfg)
+                                    
 {
 }
 
@@ -72,6 +71,16 @@ void Server::listener(asio::ip::tcp::acceptor& acceptor,
 
             if ((running_mode_ == ServerRunningMode::Persistent) && !shutdown_pending_)
                 listener(acceptor, completion_handler);
+            else
+            {
+                asio::post(io_, [this]()
+                           {
+                               gl_logger->info("Server stopped accepting new connections");
+                               uninstall_signals_handler();
+                               uninstall_listeners();
+                           });
+            }
+
         });
 }
 
@@ -128,7 +137,8 @@ void Server::on_ssl_handshake_done(asio::ssl::stream<tcp::socket>&& stream)
 template <typename T>
 inline void Server::launch_http_session(T&& channel)
 {
-    std::shared_ptr<HTTPSession<T>> session = std::make_shared<HTTPSession<T>>(io_, std::move(channel),
+    std::shared_ptr<HTTPSession<T>> session = std::make_shared<HTTPSession<T>>(cfg_, io_, 
+                                                                               std::move(channel),
                                                                                generate_session_id());
     register_session(session);
     session->start();
@@ -146,12 +156,17 @@ void Server::install_signals_handler()
         });
 }
 
+void Server::uninstall_signals_handler()
+{
+    signals_.cancel();
+}
+
 void Server::init_acceptors()
 {
-    http_acceptor_ = std::make_unique<asio::ip::tcp::acceptor>(io_, asio::ip::tcp::endpoint(tcp::v4(), http_port_));
-    if (https_port_ != http_port_)
+    http_acceptor_ = std::make_unique<asio::ip::tcp::acceptor>(io_, asio::ip::tcp::endpoint(tcp::v4(), cfg_.http_port));
+    if (cfg_.https_port != cfg_.http_port)
     {
-        https_acceptor_ = std::make_unique<asio::ip::tcp::acceptor>(io_, asio::ip::tcp::endpoint(tcp::v4(), https_port_));
+        https_acceptor_ = std::make_unique<asio::ip::tcp::acceptor>(io_, asio::ip::tcp::endpoint(tcp::v4(), cfg_.https_port));
     }
 }
 
@@ -167,6 +182,15 @@ void Server::install_listeners()
                  { ssl_handshake(std::move(socket)); });
 }
 
+void Server::uninstall_listeners()
+{
+    if (http_acceptor_ && http_acceptor_->is_open())
+        http_acceptor_->close();
+
+    if (https_acceptor_ && https_acceptor_->is_open())
+        https_acceptor_->close();
+}
+
 void Server::init_ssl_context()
 {
     ssl_context_.set_options(
@@ -175,10 +199,10 @@ void Server::init_ssl_context()
         asio::ssl::context::no_sslv3 |
         asio::ssl::context::single_dh_use);
 
-    if (!cert_path.empty())
-        ssl_context_.use_certificate_chain_file(cert_path);
-    if (!private_key_path.empty())
-        ssl_context_.use_private_key_file(private_key_path, asio::ssl::context::pem);
+    if (!cfg_.srv_cert_path.empty())
+        ssl_context_.use_certificate_chain_file(cfg_.srv_cert_path);
+    if (!cfg_.srv_private_key_path.empty())
+        ssl_context_.use_private_key_file(cfg_.srv_private_key_path, asio::ssl::context::pem);
 
     SSL_CTX_set_info_callback(ssl_context_.native_handle(), ssl_info_callback);
 }

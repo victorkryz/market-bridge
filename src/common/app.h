@@ -47,6 +47,15 @@ inline std::pair<int, bool> process_arguments(int argc, char* argv[], Config& cf
                               ("k, private-key", "specify https server private key path",
                               cxxopts::value<std::string>(cfg.srv_private_key_path)->default_value("cert/server.key"))
 
+                              ("i, ignore-cert-verification", "ignore SSL certificate verification for outgoing requests",
+                              cxxopts::value<bool>(cfg.ignore_certificate_verification)->default_value("false"))
+
+                              ("H, upstream-host", "specify upstream host for proxying outgoing requests",    
+                              cxxopts::value<std::string>(cfg.upstream_host)->default_value(cfg.upstream_host))
+
+                              ("P, upstream-port", "specify upstream port for proxying outgoing requests (default: 443)",
+                              cxxopts::value<decltype(cfg.upstream_port)>(cfg.upstream_port))
+
                               ("h, help", "print usage");
         // clang-format on
 

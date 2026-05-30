@@ -9,11 +9,13 @@
 #include "logs/logger.h"
 
 template <typename T>
-HTTPSession<T>::HTTPSession(asio::io_context& io,
+HTTPSession<T>::HTTPSession(const Config& cfg,
+                            asio::io_context& io,
                             T&& socket, uint64_t id) : SessionBase<HTTPSession<T>>(id),
                                                        io_(io), http_stream_(std::move(socket)),
                                                        strand_(asio::make_strand(http_stream_.get_executor())),
-                                                       tls_context_(asio::ssl::context::tls_client)
+                                                       tls_context_(asio::ssl::context::tls_client),
+                                                       upstream_info_{cfg.upstream_host, cfg.upstream_port, cfg.ignore_certificate_verification}
 
 {
 
@@ -237,7 +239,7 @@ void HTTPSession<T>::OutgoingSession::start()
 
     gl_logger->info("OutgoingSession started, id: {}", context_.session_id);
 
-    resolver_.async_resolve(HOST, PORT,
+    resolver_.async_resolve(context_.upstream_info.host, std::to_string(context_.upstream_info.port),
                             asio::bind_executor(context_.strand,
                                                 [this, self](const asio::error_code& ec,
                                                              tcp::resolver::results_type results)
@@ -396,21 +398,31 @@ void HTTPSession<T>::OutgoingSession::generate_request()
                                 "Accept: */*\r\n"
                                 "Connection: close\r\n"
                                 "\r\n",
-                                context_.request.target, HOST, user_agent);
+                                context_.request.target, context_.upstream_info.host, user_agent);
 }
 
 template <typename T>
 bool HTTPSession<T>::OutgoingSession::init_ssl()
 {
-    // Verify server certificate (important)
-    stream_.set_verify_mode(asio::ssl::verify_peer);
-    stream_.set_verify_callback(asio::ssl::host_name_verification(HOST));
+    const auto& upstream_info = context_.upstream_info;
+
+    if (upstream_info.ignore_certificate_verification)
+    {
+        gl_logger->warn("Certificate verification disabled for host {}", upstream_info.host);
+        stream_.set_verify_mode(asio::ssl::verify_none);
+    }
+    else
+    {
+        // Verify server certificate (important)
+        stream_.set_verify_mode(asio::ssl::verify_peer);
+        stream_.set_verify_callback(asio::ssl::host_name_verification(upstream_info.host));
+    }
 
     // SNI (many hosts require it)
-    bool result = SSL_set_tlsext_host_name(stream_.native_handle(), HOST.c_str());
+    bool result = SSL_set_tlsext_host_name(stream_.native_handle(), upstream_info.host.c_str());
     if (!result)
     {
-        gl_logger->error("Failed to set SNI host name {}", HOST);
+        gl_logger->error("Failed to set SNI host name {}", upstream_info.host);
     }
     return result;
 }

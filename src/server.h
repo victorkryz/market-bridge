@@ -31,7 +31,9 @@ private:
     void init_acceptors();
     void init_ssl_context();
     void install_listeners();
+    void uninstall_listeners();
     void install_signals_handler();
+    void uninstall_signals_handler();
     void ssl_handshake(asio::ip::tcp::socket&& socket);
     void on_ssl_handshake_done(asio::ssl::stream<asio::ip::tcp::socket>&& stream);
     void stop_sessions();
@@ -43,14 +45,11 @@ private:
     asio::io_context io_;
     asio::ssl::context ssl_context_;
     std::once_flag ssl_context_init_flag_;
-    uint16_t http_port_;
-    uint16_t https_port_;
     std::unique_ptr<asio::ip::tcp::acceptor> http_acceptor_;
     std::unique_ptr<asio::ip::tcp::acceptor> https_acceptor_;
     asio::signal_set signals_;
     std::atomic<bool> shutdown_pending_ = false;
     std::vector<std::weak_ptr<Session>> sessions_;
     std::mutex session_mtx_;
-    std::string cert_path;
-    std::string private_key_path;
+    const Config& cfg_;
 };
