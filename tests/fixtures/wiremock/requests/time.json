@@ -1,0 +1,13 @@
+{
+  "request": {
+    "method": "GET",
+    "url": "/api/v3/time"
+  },
+  "response": {
+    "status": 200,
+    "body": "{\"serverTime\":123456789}",
+    "headers": {
+      "Content-Type": "application/json"
+    }
+  }
+}
