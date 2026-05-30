@@ -10,6 +10,7 @@
 #include <sstream>
 #include <string>
 
+#include "common/config.h"
 #include "common/session.h"
 #include "utils/session-helper.h"
 
@@ -25,6 +26,13 @@ class HTTPSession : public Session,
 
     using TSession = HTTPSession<T>;
 
+    struct UpstreamInfo
+    {
+        std::string host;
+        uint16_t port;
+        bool ignore_certificate_verification = false;
+    };
+
     struct Context
     {
         asio::io_context& io;
@@ -32,14 +40,12 @@ class HTTPSession : public Session,
         asio::ssl::context& tls_context;
         const HttpRequest& request;
         const uint64_t& session_id;
+        const UpstreamInfo& upstream_info;
     };
 
     class OutgoingSession : public Session,
                             public std::enable_shared_from_this<OutgoingSession>
     {
-        inline static const std::string HOST = "api.binance.com";
-        inline static const std::string PORT = "443";
-
     public:
         OutgoingSession(std::shared_ptr<HTTPSession> outer_session)
             : outer_session_(outer_session), context_(outer_session->get_context()),
@@ -49,7 +55,7 @@ class HTTPSession : public Session,
         void start() override;
         void stop() override;
         uint64_t get_id() override
-        {                                                                                       
+        {
             return context_.session_id;
         }
 
@@ -80,7 +86,7 @@ class HTTPSession : public Session,
     };
 
 public:
-    HTTPSession(asio::io_context& io_, T&& socket, uint64_t id);
+    HTTPSession(const Config& cfg, asio::io_context& io_, T&& socket, uint64_t id);
     ~HTTPSession() override;
 
     void start() override;
@@ -93,7 +99,7 @@ public:
 protected:
     Context get_context()
     {
-        return {io_, strand_, tls_context_, request_, SessionBase<TSession>::id_};
+        return {io_, strand_, tls_context_, request_, SessionBase<TSession>::id_, upstream_info_};
     }
 
     void on_connect(const asio::error_code& ec);
@@ -120,4 +126,5 @@ private:
     std::string response_;
     std::weak_ptr<OutgoingSession> outgoing_session_;
     std::once_flag socket_shutdown_flag_;
+    UpstreamInfo upstream_info_;
 };

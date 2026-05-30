@@ -18,4 +18,7 @@ struct Config
     LoggerType logger_type = LoggerType::Console;
     std::string srv_cert_path = "cert/server.crt";
     std::string srv_private_key_path = "cert/server.key";
+    bool ignore_certificate_verification = false;
+    std::string upstream_host = "api.binance.com";
+    uint16_t upstream_port  = 443;
 };
