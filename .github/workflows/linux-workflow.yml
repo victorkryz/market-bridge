@@ -27,6 +27,7 @@ jobs:
       run: |
         sudo apt-get update  
         sudo apt-get install -y libssl-dev
+        sudo apt-get install -y jq
 
     - name: Configure CMake
       run: cmake -S. -B ${{github.workspace}}/${{env.BUILD_DIRECTORY}} -DCMAKE_BUILD_TYPE=${{env.BUILD_TYPE}}
@@ -49,12 +50,37 @@ jobs:
     - name: Generate self-signed HTTPS test certificates
       working-directory: ${{github.workspace}}/${{env.INSTALL_DIRECTORY}}
       run: |
-        mkdir ${{env.INSTALL_DIRECTORY}}
-        cd ${{env.INSTALL_DIRECTORY}}
+        mkdir -p ${{env.CERTIFICATE_DIRECTORY}}
+        cd ${{env.CERTIFICATE_DIRECTORY}} 
         openssl req -x509 -newkey rsa:2048 -days 1 -keyout server.key -out server.crt -nodes -subj "/CN=localhost"
         ls -l .
-
-    - name: Run ${{env.APP_NAME}}
+    
+    - name: Run ${{env.APP_NAME}} to show usage
       working-directory: ${{github.workspace}}/${{env.INSTALL_DIRECTORY}}
       run: bin/${{env.APP_NAME}} --help
+
+    - name: Check curl availability
+      run: curl --version
+
+    - name: Start WireMock
+      run: |
+        docker run -d \
+          --name wiremock \
+          -p 8081:8080 \
+          -p 8443:8443 \
+          -v ${{ github.workspace }}/tests/fixtures/wiremock/requests:/home/wiremock/mappings \
+          wiremock/wiremock \
+          --https-port 8443
+
+    - name: Run ${{env.APP_NAME}} to test again WireMock
+      working-directory: ${{github.workspace}}/${{env.INSTALL_DIRECTORY}}
+      run: | 
+        bin/${{env.APP_NAME}} -l trace --http-port 9080 --https-port 9443 --upstream-host "localhost" --upstream-port 8443 -i -r single-request &
+        sleep 1s
+        diff -u <(curl -k -s https://localhost:8443/api/v3/ticker/24hr?symbol=ETHUSDT) <(curl -k -s https://localhost:9080/api/v3/ticker/24hr?symbol=ETHUSDT)
+        echo "Test passed: responses from WireMock and market-bridge are identical"
+
+
+
+
       
