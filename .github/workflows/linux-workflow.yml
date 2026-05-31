@@ -102,7 +102,5 @@ jobs:
                 <(curl -k -s https://localhost:8443/api/v3/time)
         echo "Test passed: responses from WireMock and market-bridge are identical"
 
-s
-
 
       
