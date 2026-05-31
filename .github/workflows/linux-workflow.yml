@@ -72,6 +72,14 @@ jobs:
           wiremock/wiremock \
           --https-port 8443
 
+    - name: Wait for WireMock to be ready
+      run: |
+        echo "Waiting for WireMock to be ready..."
+        until curl -fsk https://localhost:8443/__admin/ > /dev/null; do
+          sleep 1
+        done
+        echo "WireMock is ready!"  
+
     - name: Run ${{env.APP_NAME}} to test again WireMock (HTTP protocol)
       working-directory: ${{github.workspace}}/${{env.INSTALL_DIRECTORY}}
       run: | 
@@ -86,6 +94,9 @@ jobs:
         diff -u <(curl -s http://localhost:9080/api/v3/ticker/24hr?symbol=ETHUSDT) \
                 <(curl -k -s https://localhost:8443/api/v3/ticker/24hr?symbol=ETHUSDT)
         echo "Test passed: responses from WireMock and market-bridge are identical"
+
+    - name: Pause ...
+      run: sleep 2
 
     - name: Run ${{env.APP_NAME}} to test again WireMock (HTTPS protocol)
       working-directory: ${{github.workspace}}/${{env.INSTALL_DIRECTORY}}
