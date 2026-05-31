@@ -4,7 +4,8 @@
 #include <openssl/err.h>
 
 #include <atomic>
-#include <sstream>
+#include <string>
+#include <vector>
 
 #include "server.h"
 #include "common/ec-handler.h"
@@ -13,6 +14,7 @@
 #include "logs/logger.h"
 
 void ssl_info_callback(const SSL* ssl, int where, int ret);
+extern std::string make_startup_table(const Config& cfg);
 
 Server::Server(const Config& cfg) : running_mode_(cfg.running_mode),
                                     signals_(io_, SIGINT, SIGTERM),
@@ -24,6 +26,7 @@ Server::Server(const Config& cfg) : running_mode_(cfg.running_mode),
 
 int Server::run()
 {
+    gl_logger->info("\n{}", make_startup_table(cfg_));
     gl_logger->info("Server running ...");
 
     init_acceptors();
