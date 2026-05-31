@@ -4,8 +4,8 @@
 #include "cxxopts.hpp"
 #include "config.h"
 
-
 constexpr auto app_name = APP_NAME;
+constexpr auto app_version = APP_VERSION;
 constexpr uint16_t default_http_port = DEFAULT_HTTP_PORT;
 constexpr uint16_t default_https_port = DEFAULT_HTTPS_PORT;
 
