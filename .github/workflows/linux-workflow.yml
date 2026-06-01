@@ -80,7 +80,7 @@ jobs:
         done
         echo "WireMock is ready!"  
 
-    - name: Run ${{env.APP_NAME}} to test again WireMock (HTTP protocol)
+    - name: Run ${{env.APP_NAME}} to test response integrity again WireMock (HTTP protocol)
       working-directory: ${{github.workspace}}/${{env.INSTALL_DIRECTORY}}
       run: | 
         bin/${{env.APP_NAME}}	--log-level trace \
@@ -98,7 +98,7 @@ jobs:
     - name: Pause ...
       run: sleep 2
 
-    - name: Run ${{env.APP_NAME}} to test again WireMock (HTTPS protocol)
+    - name: Run ${{env.APP_NAME}} to test response integrity again WireMock (HTTPS protocol)
       working-directory: ${{github.workspace}}/${{env.INSTALL_DIRECTORY}}
       run: | 
         bin/${{env.APP_NAME}}	--log-level trace \
@@ -113,5 +113,19 @@ jobs:
                 <(curl -k -s https://localhost:8443/api/v3/time)
         echo "Test passed: responses from WireMock and market-bridge are identical"
 
+    - name: Pause ...
+      run: sleep 2
 
-      
+    - name: Run ${{env.APP_NAME}} for latency smoke test again WireMock 
+      working-directory: ${{github.workspace}}/${{env.INSTALL_DIRECTORY}}
+      run: | 
+        bin/${{env.APP_NAME}}	--log-level off \
+                              --http-port 9080 \
+                              --https-port 9443 \
+                              --upstream-host "localhost" \
+                              --upstream-port 8443 \
+                              --ignore-cert-verification \
+                              --run-mode single-request &
+        sleep 1s
+        curl -k --write-out "WireMock request time: %{time_total}\n" -o /dev/null -s https://localhost:8443/api/v3/ticker/24hr?symbol=ETHUSDT
+        curl --write-out "${{env.APP_NAME}} request time: %{time_total}\n" -o /dev/null -s http://localhost:9080/api/v3/ticker/24hr?symbol=ETHUSDT      
