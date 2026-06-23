@@ -20,7 +20,7 @@ Server::Server(const Config& cfg) : running_mode_(cfg.running_mode),
                                     signals_(io_, SIGINT, SIGTERM),
                                     ssl_context_(asio::ssl::context::tls_server),
                                     cfg_(cfg)
-                                    
+
 {
 }
 
@@ -80,40 +80,47 @@ void Server::listener(asio::ip::tcp::acceptor& acceptor,
                            {
                                gl_logger->info("Server stopped accepting new connections");
                                uninstall_signals_handler();
-                               uninstall_listeners();
-                           });
+                               uninstall_listeners(); });
             }
-
         });
 }
 
 void Server::dispatch_request(asio::ip::tcp::socket socket)
 {
-    // TODO: rewrite this using async approach
+    static constexpr std::array<uint8_t, 3> tls_handshake_sign = {0x16, 0x03, 0x01};
 
-    constexpr uint8_t tls_handshake_sign[] = {0x16, 0x03, 0x01};
-
-    std::array<uint8_t, 3> buff;
-    asio::error_code ec;
-    size_t n = socket.receive(asio::buffer(buff),
-                              asio::socket_base::message_peek, ec);
-
-    if (!check_ec(ec, __func__) )
+    struct ProtocolRecognitionHelper
     {
-       gl_logger->error("Cannot detect input protocol");
-       return; 
-    }
+        explicit ProtocolRecognitionHelper(asio::ip::tcp::socket&& socket) : socket(std::move(socket)) {}
 
-    // check if https protocol:
-    if ((n >= buff.size()) &&
-        (buff[0] == tls_handshake_sign[0] && buff[1] == tls_handshake_sign[1]))
-    {
-        ssl_handshake(std::move(socket));
-    }
-    else
-    {
-        launch_http_session(std::move(socket));
-    }
+        asio::ip::tcp::socket socket;
+        std::array<uint8_t, tls_handshake_sign.size()> buff;
+    };
+
+    auto protocol_recognition_helper = std::make_shared<ProtocolRecognitionHelper>(std::move(socket));
+    protocol_recognition_helper->socket.async_receive(
+        asio::buffer(protocol_recognition_helper->buff), asio::socket_base::message_peek,
+        [this, protocol_recognition_helper](const asio::error_code& ec, size_t n)
+        {
+            if (!check_ec(ec, __func__))
+            {
+                gl_logger->error("Cannot detect input protocol");
+                return;
+            }
+
+            const auto& buff = protocol_recognition_helper->buff;
+
+            if ((n >= buff.size()) &&
+                (buff[0] == tls_handshake_sign[0] &&
+                 buff[1] == tls_handshake_sign[1]))
+            {
+                ssl_handshake(std::move(protocol_recognition_helper->socket));
+            }
+            else
+            {
+                launch_http_session(std::move(protocol_recognition_helper->socket));
+            }
+        });
 }
 
 void Server::ssl_handshake(asio::ip::tcp::socket&& socket)
@@ -140,7 +147,7 @@ void Server::on_ssl_handshake_done(asio::ssl::stream<tcp::socket>&& stream)
 template <typename T>
 inline void Server::launch_http_session(T&& channel)
 {
-    std::shared_ptr<HTTPSession<T>> session = std::make_shared<HTTPSession<T>>(cfg_, io_, 
+    std::shared_ptr<HTTPSession<T>> session = std::make_shared<HTTPSession<T>>(cfg_, io_,
                                                                                std::move(channel),
                                                                                generate_session_id());
     register_session(session);
