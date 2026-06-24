@@ -75,25 +75,6 @@ void Server::listener(asio::ip::tcp::acceptor& acceptor,
         });
 }
 
-void Server::dispatch_request(asio::ip::tcp::socket socket)
-{
-    constexpr uint8_t tls_handshake_sign[] = {0x16, 0x03, 0x01};
-
-    std::array<uint8_t, 3> buff;
-    size_t n = socket.receive(asio::buffer(buff),
-                              asio::socket_base::message_peek);
-    // check if https protocol:
-    if ((n >= buff.size()) &&
-        (buff[0] == tls_handshake_sign[0] && buff[1] == tls_handshake_sign[1]))
-    {
-        ssl_handshake(std::move(socket));
-    }
-    else
-    {
-        launch_http_session(std::move(socket));
-    }
-}
-
 void Server::ssl_handshake(asio::ip::tcp::socket&& socket)
 {
     if (!ssl_context_init_done_)
@@ -137,7 +118,7 @@ void Server::install_listeners()
 {
     if (http_acceptor_)
         listener(*http_acceptor_, [this](asio::ip::tcp::socket s)
-                 { dispatch_request(std::move(s)); });
+                 { launch_http_session(std::move(s)); });
 
     if (https_acceptor_)
         listener(*https_acceptor_,

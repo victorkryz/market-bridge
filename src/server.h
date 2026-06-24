@@ -28,7 +28,6 @@ private:
     void listener(asio::ip::tcp::acceptor& acceptor, std::function<void(asio::ip::tcp::socket)> completion_handler);
     template <typename T>
     void launch_http_session(T&& stream);
-    void dispatch_request(asio::ip::tcp::socket socket);
     void init_acceptors();
     void init_ssl_context();
     void install_listeners();
