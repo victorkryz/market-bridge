@@ -90,19 +90,35 @@ void HTTPSession<T>::obtain_header()
 {
     std::shared_ptr<HTTPSession<T>> self = this->shared_from_this();
 
+    auto reading_timeout_guard = std::make_shared<asio::steady_timer>(strand_, std::chrono::seconds(5));
+    reading_timeout_guard->async_wait(asio::bind_executor(strand_,
+                                                          [this, self,
+                                                           reading_timeout_guard](const asio::error_code& ec)
+                                                          {
+                                                              if (!is_aborted(ec))
+                                                              {
+                                                                  on_header_timeout(ec);
+                                                              }
+                                                          }));
+
     asio::async_read_until(http_stream_, buffer_,
                            http_request_headers_delimiter,
                            asio::bind_executor(strand_,
-                                               [this, self](const asio::error_code& ec,
-                                                            std::size_t bytes_transferred)
+                                               [this, self, reading_timeout_guard](const asio::error_code& ec,
+                                                                                   std::size_t bytes_transferred)
                                                {
-                                                   on_read(ec, bytes_transferred);
+                                                   reading_timeout_guard->cancel();
+                                                   on_header_obtained(ec, bytes_transferred);
                                                }));
 }
 
 template <typename T>
-void HTTPSession<T>::on_read(const asio::error_code& ec, std::size_t bytes_transferred)
+void HTTPSession<T>::on_header_obtained(const asio::error_code& ec, std::size_t bytes_transferred)
 {
+    if (is_aborted(ec) ||
+        this->is_stopped())
+        return;
+
     if (!check_ec(ec, __func__))
     {
         stop();
@@ -115,6 +131,44 @@ void HTTPSession<T>::on_read(const asio::error_code& ec, std::size_t bytes_trans
 
     HttpRequest request = parse_request(raw_request_);
     on_request(request);
+}
+
+template <typename T>
+void HTTPSession<T>::on_header_timeout(const asio::error_code& ec)
+{
+    if (is_cancelled(ec))
+        return; // timeout cancelled because header was obtained
+
+    if (!check_ec(ec, __func__))
+    {
+        stop();
+        return;
+    }
+
+    if (!this->request_stop())
+        return;
+
+    static constexpr std::string_view response_body = "Request Timeout";
+
+    response_ = std::move(generate_error_response(HTTPResponseCodes::RequestTimeout,
+                                                  response_body, std::string(response_body)));
+    auto buff = asio::buffer(response_);
+
+    auto self = this->shared_from_this();
+    asio::async_write(http_stream_, buff,
+                      asio::bind_executor(
+                          strand_,
+                          [self, this, response = response_body](const asio::error_code& ec, std::size_t)
+                          {
+                              if (check_ec(ec, __func__))
+                              {
+                                  gl_logger->info("HTTPSession id: {}, response sent: {}",
+                                                  this->get_session_id(), response);
+                              }
+
+                              gl_logger->info("HTTPSession id: {}, header read timeout, shutting down...", this->get_session_id());
+                              self->shutdown();
+                          }));
 }
 
 template <typename T>
@@ -162,20 +216,11 @@ void HTTPSession<T>::on_outgoing_session_failed(const asio::error_code& ec)
 
     static constexpr std::string_view response_body = "Bad Gateway";
 
-    response_ = fmt::format(
-        "HTTP/1.1 502 Bad Gateway\r\n"
-        "Content-Type: text/plain\r\n"
-        "Content-Length: {}\r\n"
-        "Connection: close\r\n"
-        "\r\n"
-        "{}",
-        response_body.size(),
-        response_body);
-
+    response_ = std::move(generate_error_response(HTTPResponseCodes::BadGateway,
+                                                  response_body, std::string(response_body)));
     auto buff = asio::buffer(response_);
 
     auto self = this->shared_from_this();
-
     asio::async_write(http_stream_, buff,
                       asio::bind_executor(
                           strand_,

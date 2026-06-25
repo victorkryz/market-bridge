@@ -6,7 +6,8 @@
 #include "logs/logger.h"
 
 inline bool is_eof(const asio::error_code& ec) noexcept { return (ec == asio::error::eof); }
-inline bool is_cancelled(const asio::error_code& ec) noexcept { return (ec == asio::error::operation_aborted); }
+inline bool is_aborted(const asio::error_code& ec) noexcept { return (ec == asio::error::operation_aborted); }
+inline bool is_cancelled(const asio::error_code& ec) noexcept { return is_aborted(ec); }
 
 inline bool check_ec(const asio::error_code& ec, std::string_view context) noexcept
 {

@@ -5,6 +5,7 @@
 #include <asio.hpp>
 #include <asio/any_io_executor.hpp>
 #include <asio/io_context.hpp>
+#include <asio/steady_timer.hpp>
 #include <asio/ssl.hpp>
 #include <iostream>
 #include <sstream>
@@ -103,7 +104,8 @@ protected:
     }
 
     void on_connect(const asio::error_code& ec);
-    void on_read(const asio::error_code& ec, std::size_t n);
+    void on_header_obtained(const asio::error_code& ec, std::size_t n);
+    void on_header_timeout(const asio::error_code& ec);
     void on_write(const asio::error_code& ec, std::size_t n);
     void on_request(HttpRequest request);
     void on_outgoing_session_completed(std::string response);
