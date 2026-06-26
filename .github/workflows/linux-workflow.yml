@@ -13,6 +13,7 @@ env:
   BUILD_TYPE: Release
   BUILD_DIRECTORY: build
   INSTALL_DIRECTORY: dist
+  CERTIFICATE_DIRECTORY: cert
   APP_NAME: market-bridge
 
 jobs:
@@ -26,6 +27,7 @@ jobs:
       run: |
         sudo apt-get update  
         sudo apt-get install -y libssl-dev
+        sudo apt-get install -y jq
 
     - name: Configure CMake
       run: cmake -S. -B ${{github.workspace}}/${{env.BUILD_DIRECTORY}} -DCMAKE_BUILD_TYPE=${{env.BUILD_TYPE}}
@@ -40,7 +42,76 @@ jobs:
     - name: Install
       run: cmake --install ${{github.workspace}}/${{env.BUILD_DIRECTORY}} --prefix ${{github.workspace}}/${{env.INSTALL_DIRECTORY}}
 
-    - name: Run ${{env.APP_NAME}}
+    - name: Check OpenSSL
+      run: |
+        which openssl
+        openssl version
+
+    - name: Generate self-signed HTTPS test certificates
+      working-directory: ${{github.workspace}}/${{env.INSTALL_DIRECTORY}}
+      run: |
+        mkdir -p ${{env.CERTIFICATE_DIRECTORY}}
+        cd ${{env.CERTIFICATE_DIRECTORY}} 
+        openssl req -x509 -newkey rsa:2048 -days 1 -keyout server.key -out server.crt -nodes -subj "/CN=localhost"
+        ls -l .
+    
+    - name: Run ${{env.APP_NAME}} to show usage
       working-directory: ${{github.workspace}}/${{env.INSTALL_DIRECTORY}}
       run: bin/${{env.APP_NAME}} --help
+
+    - name: Check curl availability
+      run: curl --version
+
+    - name: Start WireMock
+      run: |
+        docker run -d \
+          --name wiremock \
+          -p 8081:8080 \
+          -p 8443:8443 \
+          -v ${{ github.workspace }}/tests/fixtures/wiremock/requests:/home/wiremock/mappings \
+          wiremock/wiremock \
+          --https-port 8443
+
+    - name: Wait for WireMock to be ready
+      run: |
+        echo "Waiting for WireMock to be ready..."
+        until curl -fsk https://localhost:8443/__admin/ > /dev/null; do
+          sleep 1
+        done
+        echo "WireMock is ready!"  
+
+    - name: Run ${{env.APP_NAME}} to test again WireMock (HTTP protocol)
+      working-directory: ${{github.workspace}}/${{env.INSTALL_DIRECTORY}}
+      run: | 
+        bin/${{env.APP_NAME}}	--log-level trace \
+                      --http-port 9080 \
+                      --https-port 9443 \
+                      --upstream-host "localhost" \
+                      --upstream-port 8443 \
+                      --ignore-cert-verification \
+                      --run-mode single-request &
+        sleep 1s
+        diff -u <(curl -s http://localhost:9080/api/v3/ticker/24hr?symbol=ETHUSDT) \
+                <(curl -k -s https://localhost:8443/api/v3/ticker/24hr?symbol=ETHUSDT)
+        echo "Test passed: responses from WireMock and market-bridge are identical"
+
+    - name: Pause ...
+      run: sleep 2
+
+    - name: Run ${{env.APP_NAME}} to test again WireMock (HTTPS protocol)
+      working-directory: ${{github.workspace}}/${{env.INSTALL_DIRECTORY}}
+      run: | 
+        bin/${{env.APP_NAME}}	--log-level trace \
+                              --http-port 9080 \
+                              --https-port 9443 \
+                              --upstream-host "localhost" \
+                              --upstream-port 8443 \
+                              --ignore-cert-verification \
+                              --run-mode single-request &
+        sleep 1s
+        diff -u <(curl -k -s https://localhost:9443/api/v3/time) \
+                <(curl -k -s https://localhost:8443/api/v3/time)
+        echo "Test passed: responses from WireMock and market-bridge are identical"
+
+
       
