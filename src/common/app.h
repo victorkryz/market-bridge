@@ -56,6 +56,9 @@ inline std::pair<int, bool> process_arguments(int argc, char* argv[], Config& cf
                               ("P, upstream-port", "specify upstream port for proxying outgoing requests (default: 443)",
                               cxxopts::value<decltype(cfg.upstream_port)>(cfg.upstream_port))
 
+                              ("a, allow-https-over-http-port", "allow HTTPS requests over HTTP port",
+                              cxxopts::value<bool>(cfg.allow_https_over_http_port)->default_value("false"))
+
                               ("h, help", "print usage");
         // clang-format on
 
