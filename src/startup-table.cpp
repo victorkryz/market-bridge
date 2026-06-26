@@ -67,6 +67,7 @@ std::string make_startup_table(const Config& cfg)
         {"TLS certificate", cfg.srv_cert_path},
         {"TLS private key", cfg.srv_private_key_path},
         {"Ignore upstream cert", to_string(cfg.ignore_certificate_verification)},
+        {"Allow HTTPS over HTTP port", to_string(cfg.allow_https_over_http_port)}
     };
 
     constexpr std::size_t title_padding = 2;

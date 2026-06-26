@@ -85,6 +85,54 @@ void Server::listener(asio::ip::tcp::acceptor& acceptor,
         });
 }
 
+
+void Server::dispatch_http_request(asio::ip::tcp::socket socket)
+{
+    using std::literals::string_view_literals::operator""sv;
+
+    if (!cfg_.allow_https_over_http_port)
+    {
+        launch_http_session(std::move(socket));
+        return;
+    }
+
+    static constexpr std::array<uint8_t, 2> tls_handshake_sign = {0x16, 0x03};
+
+    struct ProtocolRecognitionHelper
+    {
+        explicit ProtocolRecognitionHelper(asio::ip::tcp::socket&& socket) : socket(std::move(socket)) {}
+
+        asio::ip::tcp::socket socket;
+        std::array<uint8_t, tls_handshake_sign.size()> buff;
+    };
+
+    auto protocol_recognition_helper = std::make_shared<ProtocolRecognitionHelper>(std::move(socket));
+    protocol_recognition_helper->socket.async_receive(
+            asio::buffer(protocol_recognition_helper->buff), 
+            asio::socket_base::message_peek,
+            [this, protocol_recognition_helper](const asio::error_code& ec, size_t n)
+        {
+            if (!check_ec(ec, "protocol_recognition_handler"sv))
+            {
+                gl_logger->error("Cannot detect input protocol");
+                return;
+            }
+
+            const auto& buff = protocol_recognition_helper->buff;
+
+            if ((n >= buff.size()) &&
+                (buff[0] == tls_handshake_sign[0] &&
+                 buff[1] == tls_handshake_sign[1]))
+            {
+                ssl_handshake(std::move(protocol_recognition_helper->socket));
+            }
+            else
+            {
+                launch_http_session(std::move(protocol_recognition_helper->socket));
+            }
+        });
+}
+
 void Server::ssl_handshake(asio::ip::tcp::socket&& socket)
 {
     std::call_once(ssl_context_init_flag_, [this]
@@ -146,7 +194,7 @@ void Server::install_listeners()
 {
     if (http_acceptor_)
         listener(*http_acceptor_, [this](asio::ip::tcp::socket s)
-                 { launch_http_session(std::move(s)); });
+                 { dispatch_http_request(std::move(s)); });
 
     if (https_acceptor_)
         listener(*https_acceptor_,
