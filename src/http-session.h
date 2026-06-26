@@ -14,9 +14,12 @@
 #include "utils/http-helper.h"
 #include <string>
 
+#include "common/config.h"
 #include "common/session.h"
+#include "utils/session-helper.h"
 
 using asio::ip::tcp;
+using session::helper::SessionBase;
 
 using asio::awaitable;
 using asio::use_awaitable;
@@ -24,11 +27,19 @@ namespace this_coro = asio::this_coro;
 
 template <typename T>
 class HTTPSession : public Session,
+                    public SessionBase<HTTPSession<T>>,
                     public std::enable_shared_from_this<HTTPSession<T>>
 {
     constexpr static size_t buffer_size = 4096;
 
     using TSession = HTTPSession<T>;
+
+    struct UpstreamInfo
+    {
+        std::string host;
+        uint16_t port;
+        bool ignore_certificate_verification = false;
+    };
 
     struct Context
     {
@@ -37,15 +48,12 @@ class HTTPSession : public Session,
         asio::ssl::context& tls_context;
         const HttpRequest& request;
         const uint64_t& session_id;
+        const UpstreamInfo& upstream_info;
     };
 
     class OutgoingSession : public Session,
                             public std::enable_shared_from_this<OutgoingSession>
     {
-    public:
-        inline static const std::string HOST = "api.binance.com";
-        inline static const std::string PORT = "443";
-
     public:
         OutgoingSession(std::shared_ptr<HTTPSession> outer_session)
             : outer_session_(outer_session), context_(outer_session->get_context()),
@@ -81,7 +89,7 @@ class HTTPSession : public Session,
     };
 
 public:
-    HTTPSession(asio::io_context& io_, T&& socket, uint64_t id);
+    HTTPSession(const Config& cfg, asio::io_context& io_, T&& socket, uint64_t id);
     ~HTTPSession() override;
 
     void start() override;
@@ -95,7 +103,7 @@ protected:
     awaitable<void> start_impl();
     Context get_context()
     {
-        return {io_, strand_, tls_context_, request_, id_};
+        return {io_, strand_, tls_context_, request_, SessionBase<TSession>::id_, upstream_info_};
     }
     void on_request(HttpRequest request);
     awaitable<void> on_outgoing_session_completed(const asio::error_code& ec, std::string response);
@@ -104,6 +112,8 @@ protected:
 private:
     bool init_tls_context();
     awaitable<void> obtain_header();
+    void on_header_obtained(const asio::error_code& ec, std::size_t bytes_transferred);
+    void on_header_timeout(const asio::error_code& ec);
 
 private:
     asio::io_context& io_;
@@ -117,4 +127,6 @@ private:
     std::string response_;
     uint64_t id_{0};
     bool stopped_ = false;
+    std::once_flag socket_shutdown_flag_;
+    UpstreamInfo upstream_info_;
 };

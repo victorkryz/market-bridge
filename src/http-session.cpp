@@ -16,12 +16,14 @@ auto& lowest_socket(Stream& stream)
 }
 
 template <typename T>
-HTTPSession<T>::HTTPSession(asio::io_context& io, T&& socket, uint64_t id)
-    : io_(io), http_stream_(std::move(socket)), strand_(asio::make_strand(http_stream_.get_executor())),
-      tls_context_(asio::ssl::context::tls_client),
-      id_(id)
+HTTPSession<T>::HTTPSession(const Config& cfg,
+                            asio::io_context& io,
+                            T&& socket, uint64_t id) : SessionBase<HTTPSession<T>>(id),
+                                                       io_(io), http_stream_(std::move(socket)),
+                                                       strand_(asio::make_strand(http_stream_.get_executor())),
+                                                       tls_context_(asio::ssl::context::tls_client),
+                                                       upstream_info_{cfg.upstream_host, cfg.upstream_port, cfg.ignore_certificate_verification}
 {
-
     gl_logger->trace("HTTPSession constructed, id: {}", id_);
 }
 
@@ -61,19 +63,116 @@ awaitable<void> HTTPSession<T>::start_impl()
 }
 
 template <typename T>
+bool HTTPSession<T>::init_tls_context()
+{
+    bool result(true);
+    std::string failure_hints;
+
+    try
+    {
+#ifdef _WIN32
+        const std::string cert_path = "cert\\cacert.pem";
+        failure_hints = fmt::format("(possibly SSL certificate not found ({})", cert_path);
+
+        tls_context_.set_verify_mode(asio::ssl::verify_peer);
+        tls_context_.load_verify_file(cert_path);
+#else
+        // Use system CA certificates (Linux/macOS typically OK)
+        tls_context_.set_default_verify_paths();
+#endif
+    }
+    catch (const std::exception& e)
+    {
+        gl_logger->error("TLS initialization failure {} {}", e.what(), failure_hints);
+        result = false;
+    }
+
+    return result;
+}
+
+template <typename T>
 awaitable<void> HTTPSession<T>::obtain_header()
 {
+    std::shared_ptr<HTTPSession<T>> self = this->shared_from_this();
+
+    auto reading_timeout_guard = std::make_shared<asio::steady_timer>(strand_, std::chrono::seconds(5));
+    reading_timeout_guard->async_wait(asio::bind_executor(strand_,
+                                                          [this, self,
+                                                           reading_timeout_guard](const asio::error_code& ec)
+                                                          {
+                                                              if (!is_aborted(ec))
+                                                              {
+                                                                  on_header_timeout(ec);
+                                                              }
+                                                          }));
+
     auto [ec, bytes_transferred] =
         co_await asio::async_read_until(http_stream_, buffer_,
                                         http_request_headers_delimiter, asio::as_tuple(use_awaitable));
-    if (!check_ec(ec, __func__))
+    if (!check_ec(ec))
         co_return;
+
+    reading_timeout_guard->cancel();
+    on_header_obtained(ec, bytes_transferred);
+}
+
+template <typename T>
+void HTTPSession<T>::on_header_obtained(const asio::error_code& ec, std::size_t bytes_transferred)
+{
+    if (is_aborted(ec) ||
+        this->is_stopped())
+        return;
+
+    if (!check_ec(ec))
+    {
+        stop();
+        return;
+    }
 
     std::istream stream(&buffer_);
     raw_request_.resize(bytes_transferred);
     stream.read(&raw_request_[0], bytes_transferred);
+
     HttpRequest request = parse_request(raw_request_);
     on_request(request);
+}
+
+template <typename T>
+void HTTPSession<T>::on_header_timeout(const asio::error_code& ec)
+{
+    if (is_cancelled(ec))
+        return; // timeout cancelled because header was obtained
+
+    if (!check_ec(ec))
+    {
+        stop();
+        return;
+    }
+
+    if (!this->request_stop())
+        return;
+
+    static constexpr std::string_view response_body = "Request Timeout";
+
+    response_ = std::move(generate_error_response(HTTPResponseCodes::RequestTimeout,
+                                                  response_body, std::string(response_body)));
+    auto buff = asio::buffer(response_);
+
+    auto self = this->shared_from_this();
+    asio::async_write(http_stream_, buff,
+                      asio::bind_executor(
+                          strand_,
+                          [self, this, response = response_body](const asio::error_code& ec, std::size_t)
+                          {
+                              if (check_ec(ec))
+                              {
+                                  gl_logger->info("HTTPSession id: {}, response sent: {}",
+                                                  this->get_session_id(), response);
+                              }
+
+                              gl_logger->info("HTTPSession id: {}, header read timeout, shutting down...", this->get_session_id());
+                              self->shutdown();
+                          }));
 }
 
 template <typename T>
@@ -88,37 +187,6 @@ void HTTPSession<T>::on_request(HttpRequest request)
     auto outgoing_session = std::make_shared<HTTPSession::OutgoingSession>(self);
 
     outgoing_session->start();
-}
-
-template <typename T>
-bool HTTPSession<T>::init_tls_context()
-{
-    bool result(true);
-    std::string failure_hints;
-
-    try
-    {
-        // Verify server certificate
-        tls_context_.set_verify_mode(asio::ssl::verify_peer);
-        tls_context_.set_verify_callback(asio::ssl::host_name_verification(OutgoingSession::HOST));
-
-#ifdef _WIN32
-        const std::string cert_path = "cert\\cacert.pem";
-        failure_hints = fmt::format("(possibly SSL certificate not found ({})", cert_path);
-
-        tls_context_.load_verify_file(cert_path);
-#else
-        // Use system CA certificates (Linux/macOS typically OK)
-        tls_context_.set_default_verify_paths();
-#endif
-    }
-    catch (const std::exception& e)
-    {
-        gl_logger->error("TLS initialization failure {} {}", e.what(), failure_hints);
-        result = false;
-    }
-
-    return result;
 }
 
 template <typename T>
@@ -173,7 +241,8 @@ awaitable<void> HTTPSession<T>::OutgoingSession::start_impl()
     auto self = this->shared_from_this();
 
     auto [ec, results] =
-        co_await resolver_.async_resolve(HOST, PORT, asio::as_tuple(use_awaitable));
+        co_await resolver_.async_resolve(context_.upstream_info.host, std::to_string(context_.upstream_info.port),
+                                         asio::as_tuple(use_awaitable));
     if (check_ec(ec, __func__))
     {
         co_await connect(results);
@@ -252,17 +321,31 @@ void HTTPSession<T>::OutgoingSession::generate_request()
                                 "Accept: */*\r\n"
                                 "Connection: close\r\n"
                                 "\r\n",
-                                context_.request.target, HOST, user_agent);
+                                context_.request.target, context_.upstream_info.host, user_agent);
 }
 
 template <typename T>
 bool HTTPSession<T>::OutgoingSession::init_ssl()
 {
+    const auto& upstream_info = context_.upstream_info;
+
+    if (upstream_info.ignore_certificate_verification)
+    {
+        gl_logger->warn("Certificate verification disabled for host {}", upstream_info.host);
+        stream_.set_verify_mode(asio::ssl::verify_none);
+    }
+    else
+    {
+        // Verify server certificate (important)
+        stream_.set_verify_mode(asio::ssl::verify_peer);
+        stream_.set_verify_callback(asio::ssl::host_name_verification(upstream_info.host));
+    }
+
     // SNI (many hosts require it)
-    bool result = SSL_set_tlsext_host_name(stream_.native_handle(), HOST.c_str());
+    bool result = SSL_set_tlsext_host_name(stream_.native_handle(), upstream_info.host.c_str());
     if (!result)
     {
-        gl_logger->error("Failed to set SNI host name {}", HOST);
+        gl_logger->error("Failed to set SNI host name {}", upstream_info.host);
     }
     return result;
 }

@@ -12,7 +12,9 @@ enum class HTTPResponseCodes : long
     BadRequest = 400,
     Unauthorized = 401,
     Forbidden = 403,
-    NotFound = 404
+    NotFound = 404,
+    RequestTimeout = 408,
+    BadGateway = 502
 };
 
 inline constexpr auto http_request_headers_delimiter = "\r\n\r\n";
@@ -108,3 +110,16 @@ inline HttpRequest parse_request(const std::string& raw)
 
     return req;
 }
+
+inline std::string generate_error_response(HTTPResponseCodes status_code, const std::string_view& reason, 
+                                           const std::string& body)
+{
+    HttpResponse response;
+    response.status_code = static_cast<int>(status_code);
+    response.reason = reason;
+    response.body = body;
+    response.headers["Content-Type"] = "text/plain";
+    response.headers["Connection"] = "close";
+    return response.to_string();
+}   
+
