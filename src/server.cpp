@@ -57,78 +57,66 @@ void Server::schedule_shutdown()
     close_acceptors();
 }
 
-void Server::listener(asio::ip::tcp::acceptor& acceptor,
-                      std::function<void(asio::ip::tcp::socket)> completion_handler)
+awaitable<void> Server::listener(asio::ip::tcp::acceptor& acceptor,
+                                 std::function<void(asio::ip::tcp::socket)> completion_handler)
 {
-    acceptor.async_accept(
-        [this, &acceptor, completion_handler](const asio::error_code& ec, asio::ip::tcp::socket socket)
-        {
-            if (check_ec(ec, __func__))
-            {
-                gl_logger->info("Server accepted connection");
+    while (!shutdown_pending_)
+    {
+        auto [ec, socket] =
+            co_await acceptor.async_accept(io_, asio::as_tuple(asio::use_awaitable));
 
-                if (completion_handler)
-                    std::invoke(completion_handler, std::move(socket));
-            }
+        // Explicit for aborted state (e.g. acceptor closed)
+        if (is_aborted(ec) || !check_ec(ec))
+            break;
 
-            if ((running_mode_ == ServerRunningMode::Persistent) && !shutdown_pending_)
-                listener(acceptor, completion_handler);
-            else
-            {
-                asio::post(io_, [this]()
-                           {
-                               gl_logger->info("Server stopped accepting new connections");
-                               uninstall_signals_handler();
-                               uninstall_listeners(); });
-            }
-        });
+        gl_logger->info("Server accepted connection");
+
+        if (completion_handler)
+            completion_handler(std::move(socket));
+
+        if (running_mode_ == ServerRunningMode::SingleRequest)
+            break;
+    }
+
+    gl_logger->info("Server stopped accepting new connections");
+    
+    uninstall_signals_handler();
+    uninstall_listeners();
 }
 
-void Server::dispatch_http_request(asio::ip::tcp::socket socket)
+asio::awaitable<void> Server::dispatch_http_request(asio::ip::tcp::socket socket)
 {
     using std::literals::string_view_literals::operator""sv;
 
     if (!cfg_.allow_https_over_http_port)
     {
         launch_http_session(std::move(socket));
-        return;
+        co_return;
     }
 
     static constexpr std::array<uint8_t, 2> tls_handshake_sign = {0x16, 0x03};
 
-    struct ProtocolRecognitionHelper
+    std::array<uint8_t, tls_handshake_sign.size()> buff;
+
+    auto [ec, n] = co_await socket.async_receive(asio::buffer(buff),
+                                                 asio::socket_base::message_peek,
+                                                 asio::as_tuple(asio::use_awaitable));
+    if (!check_ec(ec))
     {
-        explicit ProtocolRecognitionHelper(asio::ip::tcp::socket&& socket) : socket(std::move(socket)) {}
+        gl_logger->error("Cannot detect input protocol");
+        co_return;
+    }
 
-        asio::ip::tcp::socket socket;
-        std::array<uint8_t, tls_handshake_sign.size()> buff;
-    };
-
-    auto protocol_recognition_helper = std::make_shared<ProtocolRecognitionHelper>(std::move(socket));
-    protocol_recognition_helper->socket.async_receive(
-        asio::buffer(protocol_recognition_helper->buff),
-        asio::socket_base::message_peek,
-        [this, protocol_recognition_helper](const asio::error_code& ec, size_t n)
-        {
-            if (!check_ec(ec, "protocol_recognition_handler"sv))
-            {
-                gl_logger->error("Cannot detect input protocol");
-                return;
-            }
-
-            const auto& buff = protocol_recognition_helper->buff;
-
-            if ((n >= buff.size()) &&
-                (buff[0] == tls_handshake_sign[0] &&
-                 buff[1] == tls_handshake_sign[1]))
-            {
-                ssl_handshake(std::move(protocol_recognition_helper->socket));
-            }
-            else
-            {
-                launch_http_session(std::move(protocol_recognition_helper->socket));
-            }
-        });
+    if ((n >= buff.size()) &&
+        (buff[0] == tls_handshake_sign[0] &&
+         buff[1] == tls_handshake_sign[1]))
+    {
+        ssl_handshake(std::move(socket));
+    }
+    else
+    {
+        launch_http_session(std::move(socket));
+    }
 }
 
 void Server::ssl_handshake(asio::ip::tcp::socket&& socket)
@@ -175,13 +163,17 @@ void Server::init_acceptors()
 void Server::install_listeners()
 {
     if (http_acceptor_)
-        listener(*http_acceptor_, [this](asio::ip::tcp::socket s)
-                 { dispatch_http_request(std::move(s)); });
+        asio::co_spawn(http_acceptor_->get_executor(), listener(*http_acceptor_, [this](asio::ip::tcp::socket s)
+                                                                { 
+                                        auto executor = s.get_executor();
+                                        asio::co_spawn(executor, 
+                                            dispatch_http_request(std::move(s)), asio::detached); }),
+                       asio::detached);
 
     if (https_acceptor_)
-        listener(*https_acceptor_,
-                 [this](asio::ip::tcp::socket socket)
-                 { ssl_handshake(std::move(socket)); });
+        asio::co_spawn(https_acceptor_->get_executor(), listener(*https_acceptor_, [this](asio::ip::tcp::socket socket)
+                                                                 { ssl_handshake(std::move(socket)); }),
+                       asio::detached);
 }
 
 void Server::uninstall_listeners()

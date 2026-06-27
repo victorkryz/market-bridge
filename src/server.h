@@ -6,8 +6,17 @@
 #include <asio/ssl.hpp>
 #include <atomic>
 
+#include <asio/co_spawn.hpp>
+#include <asio/detached.hpp>
+#include <asio/awaitable.hpp>
+#include <asio/use_awaitable.hpp>
+
 #include "common/config.h"
 #include "common/session.h"
+
+using asio::awaitable;
+using asio::use_awaitable;
+namespace this_coro = asio::this_coro;
 
 class Server
 {
@@ -24,8 +33,9 @@ public:
     void schedule_shutdown();
 
 private:
-    void listener(asio::ip::tcp::acceptor& acceptor, std::function<void(asio::ip::tcp::socket)> completion_handler);
-    void dispatch_http_request(asio::ip::tcp::socket socket);
+    awaitable<void> listener(asio::ip::tcp::acceptor& acceptor, 
+                             std::function<void(asio::ip::tcp::socket)> completion_handler);
+    asio::awaitable<void> dispatch_http_request(asio::ip::tcp::socket socket);
     template <typename T>
     void launch_http_session(T&& stream);
     void init_acceptors();
