@@ -33,6 +33,7 @@ struct TestBase
     void TearDown() {};
 
     Config out_args_;
+    Config default_args_;
     std::vector<char*> in_args_;
 };
 
@@ -114,6 +115,8 @@ TEST_F(CommandLineTS, EmptyLineTest)
     EXPECT_EQ(out_args_.logger_type, default_log_type);
     EXPECT_EQ(out_args_.srv_cert_path, default_srv_cert_path);
     EXPECT_EQ(out_args_.srv_private_key_path, default_srv_private_key_path);
+    EXPECT_FALSE(out_args_.ignore_certificate_verification);
+    EXPECT_FALSE(out_args_.allow_https_over_http_port);
 
     EXPECT_FALSE(usage_requested);
     EXPECT_FALSE(gl_show_usage_called);
@@ -143,6 +146,7 @@ TEST_F(CommandLineTS, HttpPortArgTest)
 
     EXPECT_EQ(exit_code, 0);
 
+    
     EXPECT_EQ(out_args_.http_port, in_port);
     EXPECT_EQ(out_args_.https_port, default_https_port);
     EXPECT_EQ(out_args_.log_level, spdlog::level::level_enum::info);
@@ -150,6 +154,11 @@ TEST_F(CommandLineTS, HttpPortArgTest)
     EXPECT_EQ(out_args_.logger_type, default_log_type);
     EXPECT_EQ(out_args_.srv_cert_path, default_srv_cert_path);
     EXPECT_EQ(out_args_.srv_private_key_path, default_srv_private_key_path);
+    EXPECT_FALSE(out_args_.ignore_certificate_verification);
+    EXPECT_FALSE(out_args_.allow_https_over_http_port);
+
+    EXPECT_EQ(out_args_.upstream_host, default_args_.upstream_host);
+    EXPECT_EQ(out_args_.upstream_port, default_args_.upstream_port);
 
     EXPECT_FALSE(usage_requested);
     EXPECT_FALSE(gl_show_usage_called);
@@ -157,7 +166,7 @@ TEST_F(CommandLineTS, HttpPortArgTest)
 
 TEST_F(CommandLineTS, HttpsPortArgTest)
 {
-    constexpr auto in_port = 443u;
+    constexpr auto in_port = 9443u;
     std::string s_port = testing::PrintToString(in_port);
 
     in_args_ = {"", "--https-port", s_port.data()};
@@ -174,6 +183,11 @@ TEST_F(CommandLineTS, HttpsPortArgTest)
     EXPECT_EQ(out_args_.logger_type, default_log_type);
     EXPECT_EQ(out_args_.srv_cert_path, default_srv_cert_path);
     EXPECT_EQ(out_args_.srv_private_key_path, default_srv_private_key_path);
+    EXPECT_FALSE(out_args_.ignore_certificate_verification);
+    EXPECT_FALSE(out_args_.allow_https_over_http_port);
+
+    EXPECT_EQ(out_args_.upstream_host, default_args_.upstream_host);
+    EXPECT_EQ(out_args_.upstream_port, default_args_.upstream_port);
 
     EXPECT_FALSE(usage_requested);
     EXPECT_FALSE(gl_show_usage_called);
@@ -199,10 +213,104 @@ TEST_F(CommandLineTS, CertPathArgTest)
     EXPECT_EQ(out_args_.log_level, spdlog::level::level_enum::info);
     EXPECT_EQ(out_args_.running_mode, ServerRunningMode::Persistent);
     EXPECT_EQ(out_args_.logger_type, default_log_type);
+    EXPECT_FALSE(out_args_.ignore_certificate_verification);
+    EXPECT_FALSE(out_args_.allow_https_over_http_port);
+
+    EXPECT_EQ(out_args_.upstream_host, default_args_.upstream_host);
+    EXPECT_EQ(out_args_.upstream_port, default_args_.upstream_port);
 
     EXPECT_FALSE(usage_requested);
     EXPECT_FALSE(gl_show_usage_called);
 }
+
+TEST_F(CommandLineTS, IgnoreCertificateVerificationArgTest)
+{
+    in_args_ = {"", "--ignore-cert-verification"};
+
+    const auto [exit_code, usage_requested] =
+        process_arguments(in_args_.size(), in_args_.data(), out_args_);
+
+    EXPECT_EQ(exit_code, 0);
+    EXPECT_FALSE(out_args_.allow_https_over_http_port);
+
+    EXPECT_TRUE(out_args_.ignore_certificate_verification);
+
+    EXPECT_FALSE(usage_requested);
+    EXPECT_FALSE(gl_show_usage_called);
+}
+
+
+TEST_F(CommandLineTS, AllowHttpsOverHttpPortArgTest)
+{
+    in_args_ = {"", "--allow-https-over-http-port"};
+
+    const auto [exit_code, usage_requested] =
+        process_arguments(in_args_.size(), in_args_.data(), out_args_);
+
+    EXPECT_EQ(exit_code, 0);
+
+    EXPECT_TRUE(out_args_.allow_https_over_http_port);
+
+    EXPECT_FALSE(usage_requested);
+    EXPECT_FALSE(gl_show_usage_called);
+}
+
+
+TEST_F(CommandLineTS, UpstreamHostArgTest)
+{
+    std::string s_host = "api.test.com";
+    in_args_ = {"", "--upstream-host", s_host.data()};
+
+    const auto [exit_code, usage_requested] =
+        process_arguments(in_args_.size(), in_args_.data(), out_args_);
+
+    EXPECT_EQ(exit_code, 0);
+
+    EXPECT_EQ(out_args_.upstream_host, s_host);
+    EXPECT_EQ(out_args_.http_port, default_http_port);
+    EXPECT_EQ(out_args_.log_level, spdlog::level::level_enum::info);
+    EXPECT_EQ(out_args_.running_mode, ServerRunningMode::Persistent);
+    EXPECT_EQ(out_args_.logger_type, default_log_type);
+    EXPECT_EQ(out_args_.srv_cert_path, default_srv_cert_path);
+    EXPECT_EQ(out_args_.srv_private_key_path, default_srv_private_key_path);
+    EXPECT_FALSE(out_args_.ignore_certificate_verification);
+    EXPECT_FALSE(out_args_.allow_https_over_http_port);
+
+    EXPECT_EQ(out_args_.upstream_port, default_args_.upstream_port);
+
+    EXPECT_FALSE(usage_requested);
+    EXPECT_FALSE(gl_show_usage_called);
+}
+
+
+TEST_F(CommandLineTS, UpstreamPortArgTest)
+{
+    constexpr auto in_port = 8443u;
+    std::string s_port = testing::PrintToString(in_port);
+
+    in_args_ = {"", "--upstream-port", s_port.data()};
+
+    const auto [exit_code, usage_requested] =
+        process_arguments(in_args_.size(), in_args_.data(), out_args_);
+
+    EXPECT_EQ(exit_code, 0);
+
+    EXPECT_EQ(out_args_.upstream_port, in_port);
+    EXPECT_EQ(out_args_.http_port, default_http_port);
+    EXPECT_EQ(out_args_.log_level, spdlog::level::level_enum::info);
+    EXPECT_EQ(out_args_.running_mode, ServerRunningMode::Persistent);
+    EXPECT_EQ(out_args_.logger_type, default_log_type);
+    EXPECT_EQ(out_args_.srv_cert_path, default_srv_cert_path);
+    EXPECT_EQ(out_args_.srv_private_key_path, default_srv_private_key_path);
+    EXPECT_FALSE(out_args_.ignore_certificate_verification);
+    EXPECT_FALSE(out_args_.allow_https_over_http_port);
+
+    EXPECT_EQ(out_args_.upstream_host, default_args_.upstream_host);
+
+    EXPECT_FALSE(usage_requested);
+    EXPECT_FALSE(gl_show_usage_called);
+}
+
 
 INSTANTIATE_TEST_SUITE_P(LogLevelArg,
                          LogLevel_TS,
