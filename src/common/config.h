@@ -11,8 +11,8 @@ enum class ServerRunningMode
 
 struct Config
 {
-    uint16_t http_port = 8080; // default port
-    uint16_t https_port = 8443;
+    uint16_t http_port = DEFAULT_HTTP_PORT; // default port
+    uint16_t https_port = DEFAULT_HTTPS_PORT;
     ServerRunningMode running_mode = ServerRunningMode::Persistent;
     spdlog::level::level_enum log_level = spdlog::level::level_enum::info; // default log level
     LoggerType logger_type = LoggerType::Console;
