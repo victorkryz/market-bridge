@@ -82,7 +82,38 @@ or HTTPS calls if certificates are provided, at least self-signed ones
                          requests (default: api.binance.com)
 -P, --upstream-port arg  specify upstream port for proxying outgoing 
                          requests (default: 443)
+    --config arg         load configuration from a JSON file
 ```
+
+### JSON configuration:
+
+The JSON configuration file can contain the following values (shown with their defaults):
+
+```json
+{
+  "server": {
+    "http_port": 8080,
+    "https_port": 8443,
+    "run_mode": "persist",
+    "allow_https_over_http_port": false
+  },
+  "tls": {
+    "certificate": "cert/server.crt",
+    "private_key": "cert/server.key"
+  },
+  "upstream": {
+    "host": "api.binance.com",
+    "port": 443,
+    "ignore_certificate_verification": false
+  },
+  "logging": {
+    "output": "console",
+    "level": "info"
+  }
+}
+```
+
+Command line parameters override values specified in the JSON configuration file.
 
 ### Samples of usage:
 
@@ -92,7 +123,8 @@ market-bridge -p 8080
 market-bridge -l info
 market-bridge -h
 market-bridge -o file
-
+market-bridge --config market-bridge.json
+market-bridge --config market-bridge.json --http-port 9000
 ```
 
 ### Third-Party Libraries:
