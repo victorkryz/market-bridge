@@ -13,11 +13,13 @@ set(gtest_force_shared_crt ON CACHE BOOL "" FORCE)
 set(INSTALL_GTEST OFF CACHE BOOL "" FORCE)
 FetchContent_MakeAvailable(googletest)
 
-add_executable(${test_module} ${tests_src_files} ${h_files})
+add_executable(${test_module} ${tests_src_files} ${h_files}
+  ${PROJECT_SOURCE_DIR}/src/config/config_json.cpp)
 
 target_link_libraries(${test_module} PRIVATE asio
   cxxopts
   spdlog::spdlog
+  nlohmann_json::nlohmann_json
   OpenSSL::SSL
   GTest::gtest_main)
 
@@ -34,4 +36,3 @@ endif()
 target_include_directories(${test_module} PRIVATE "${PROJECT_SOURCE_DIR}/src")
 
 add_test(google-tests ${test_module})
-

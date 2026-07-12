@@ -12,6 +12,28 @@
 #include <string_view>
 // clang-format on
 
+constexpr std::string_view default_json_config = R"({
+  "server": {
+    "http_port": 8080,
+    "https_port": 8443,
+    "run_mode": "persist",
+    "allow_https_over_http_port": false
+  },
+  "tls": {
+    "certificate": "cert/server.crt",
+    "private_key": "cert/server.key"
+  },
+  "upstream": {
+    "host": "api.binance.com",
+    "port": 443,
+    "ignore_certificate_verification": false
+  },
+  "logging": {
+    "output": "console",
+    "level": "info"
+  }
+})";
+
 bool gl_show_usage_called(false);
 
 void show_usage(const cxxopts::Options& options)
@@ -146,7 +168,6 @@ TEST_F(CommandLineTS, HttpPortArgTest)
 
     EXPECT_EQ(exit_code, 0);
 
-    
     EXPECT_EQ(out_args_.http_port, in_port);
     EXPECT_EQ(out_args_.https_port, default_https_port);
     EXPECT_EQ(out_args_.log_level, spdlog::level::level_enum::info);
@@ -239,7 +260,6 @@ TEST_F(CommandLineTS, IgnoreCertificateVerificationArgTest)
     EXPECT_FALSE(gl_show_usage_called);
 }
 
-
 TEST_F(CommandLineTS, AllowHttpsOverHttpPortArgTest)
 {
     in_args_ = {"", "--allow-https-over-http-port"};
@@ -254,7 +274,6 @@ TEST_F(CommandLineTS, AllowHttpsOverHttpPortArgTest)
     EXPECT_FALSE(usage_requested);
     EXPECT_FALSE(gl_show_usage_called);
 }
-
 
 TEST_F(CommandLineTS, UpstreamHostArgTest)
 {
@@ -281,7 +300,6 @@ TEST_F(CommandLineTS, UpstreamHostArgTest)
     EXPECT_FALSE(usage_requested);
     EXPECT_FALSE(gl_show_usage_called);
 }
-
 
 TEST_F(CommandLineTS, UpstreamPortArgTest)
 {
@@ -310,7 +328,6 @@ TEST_F(CommandLineTS, UpstreamPortArgTest)
     EXPECT_FALSE(usage_requested);
     EXPECT_FALSE(gl_show_usage_called);
 }
-
 
 INSTANTIATE_TEST_SUITE_P(LogLevelArg,
                          LogLevel_TS,
@@ -388,6 +405,124 @@ TEST_P(RunMode_TS, RunMode)
     EXPECT_EQ(out_args_.logger_type, default_log_type);
 
     EXPECT_EQ(out_args_.running_mode, run_mode);
+
+    EXPECT_FALSE(usage_requested);
+    EXPECT_FALSE(gl_show_usage_called);
+}
+
+TEST_F(CommandLineTS, DefaultJsonConfigTest)
+{
+    std::string s_config = "config.json";
+    in_args_ = {"", "--config", s_config.data()};
+
+    LoadFromString cfg_loader(default_json_config);
+
+    const auto [exit_code, usage_requested] =
+        process_arguments(in_args_.size(), in_args_.data(), cfg_loader, out_args_);
+
+    EXPECT_EQ(exit_code, 0);
+
+    EXPECT_EQ(out_args_.config_path, s_config);
+    EXPECT_EQ(out_args_.http_port, default_http_port);
+    EXPECT_EQ(out_args_.https_port, default_https_port);
+    EXPECT_EQ(out_args_.log_level, spdlog::level::level_enum::info);
+    EXPECT_EQ(out_args_.running_mode, ServerRunningMode::Persistent);
+    EXPECT_EQ(out_args_.logger_type, default_log_type);
+    EXPECT_EQ(out_args_.srv_cert_path, default_srv_cert_path);
+    EXPECT_EQ(out_args_.srv_private_key_path, default_srv_private_key_path);
+    EXPECT_FALSE(out_args_.ignore_certificate_verification);
+    EXPECT_FALSE(out_args_.allow_https_over_http_port);
+
+    EXPECT_EQ(out_args_.upstream_host, default_args_.upstream_host);
+    EXPECT_EQ(out_args_.upstream_port, default_args_.upstream_port);
+
+    EXPECT_FALSE(usage_requested);
+    EXPECT_FALSE(gl_show_usage_called);
+}
+
+TEST_F(CommandLineTS, CustomJsonConfigTest)
+{
+    std::string s_config = "fake_config.json";
+    in_args_ = {"", "--config", s_config.data()};
+
+    constexpr std::string_view json_config = R"({
+        "server": {
+            "http_port": 9080,
+            "https_port": 9443,
+            "run_mode": "persist",
+            "allow_https_over_http_port": true
+        },
+        "logging": {
+            "output": "console",
+            "level": "trace"
+        }
+        })";
+
+    LoadFromString cfg_loader(json_config);
+
+    const auto [exit_code, usage_requested] =
+        process_arguments(in_args_.size(), in_args_.data(), cfg_loader, out_args_);
+
+    EXPECT_EQ(exit_code, 0);
+
+    EXPECT_EQ(out_args_.config_path, s_config);
+    EXPECT_EQ(out_args_.http_port, 9080u);
+    EXPECT_EQ(out_args_.https_port, 9443u);
+    EXPECT_EQ(out_args_.log_level, spdlog::level::level_enum::trace);
+    EXPECT_EQ(out_args_.running_mode, ServerRunningMode::Persistent);
+    EXPECT_EQ(out_args_.logger_type, default_log_type);
+    EXPECT_EQ(out_args_.srv_cert_path, default_srv_cert_path);
+    EXPECT_EQ(out_args_.srv_private_key_path, default_srv_private_key_path);
+
+    EXPECT_FALSE(out_args_.ignore_certificate_verification);
+    EXPECT_TRUE(out_args_.allow_https_over_http_port);
+
+    EXPECT_EQ(out_args_.upstream_host, default_args_.upstream_host);
+    EXPECT_EQ(out_args_.upstream_port, default_args_.upstream_port);
+
+    EXPECT_FALSE(usage_requested);
+    EXPECT_FALSE(gl_show_usage_called);
+}
+
+TEST_F(CommandLineTS, CustomJsonConfigTest2)
+{
+    std::string s_config = "fake_config.json";
+    in_args_ = {"", "--config", s_config.data()};
+
+    constexpr std::string_view json_config = R"({
+
+        "upstream": {
+            "host": "api.test.com",
+            "port": 9443,
+            "ignore_certificate_verification": true
+        },
+        "logging": {
+            "output": "file",
+            "level": "off"
+        }
+        })";
+
+    LoadFromString cfg_loader(json_config);
+
+    const auto [exit_code, usage_requested] =
+        process_arguments(in_args_.size(), in_args_.data(), cfg_loader, out_args_);
+
+    EXPECT_EQ(exit_code, 0);
+
+    EXPECT_EQ(out_args_.config_path, s_config);
+    EXPECT_EQ(out_args_.http_port, default_http_port);
+    EXPECT_EQ(out_args_.https_port, default_https_port);
+    EXPECT_EQ(out_args_.log_level, spdlog::level::level_enum::off);
+    EXPECT_EQ(out_args_.running_mode, ServerRunningMode::Persistent);
+    EXPECT_EQ(out_args_.logger_type, LoggerType::File);
+    EXPECT_EQ(out_args_.srv_cert_path, default_srv_cert_path);
+    EXPECT_EQ(out_args_.srv_private_key_path, default_srv_private_key_path);
+
+    EXPECT_TRUE(out_args_.ignore_certificate_verification);
+    EXPECT_FALSE(out_args_.allow_https_over_http_port);
+
+    EXPECT_EQ(out_args_.upstream_host, "api.test.com");
+    EXPECT_EQ(out_args_.upstream_port, 9443u);
 
     EXPECT_FALSE(usage_requested);
     EXPECT_FALSE(gl_show_usage_called);

@@ -3,6 +3,7 @@
 #include "logs/logger.h"
 #include "cxxopts.hpp"
 #include "config.h"
+#include "config/config_json.h"
 
 constexpr auto app_name = APP_NAME;
 constexpr auto app_version = APP_VERSION;
@@ -10,54 +11,56 @@ constexpr uint16_t default_http_port = DEFAULT_HTTP_PORT;
 constexpr uint16_t default_https_port = DEFAULT_HTTPS_PORT;
 
 void show_usage(const cxxopts::Options& options);
+void merge_parsed_arguments(const cxxopts::ParseResult& parsed_cfg, Config& target_cfg);
 
 // returns pair: error code, usage requested indicator
-inline std::pair<int, bool> process_arguments(int argc, char* argv[], Config& cfg)
+template <typename ConfigLoader = LoadFromFile>
+inline std::pair<int, bool> process_arguments(int argc, char* argv[],
+                                              ConfigLoader& cfg_loader, Config& cfg)
 {
-    bool usage(false), version(false);
     std::pair<int, bool> result = {0, false};
 
     try
     {
         cxxopts::Options options(app_name, "Binance proxy server");
-        options.positional_help("[optional cfg]").show_positional_help();
-
-        std::string log_level(SPDLOG_LEVEL_NAME_INFO.data(), SPDLOG_LEVEL_NAME_INFO.size());
-        std::string running_mode, log_type;
+        options.positional_help("").show_positional_help();
 
         // clang-format off
         options.add_options()("p, http-port", "specify http port (default: 8080)",
-                              cxxopts::value<decltype(cfg.http_port)>(cfg.http_port))
+                              cxxopts::value<decltype(cfg.http_port)>())
 
                               ("s, https-port", "specify port (default: 8443)",
-                              cxxopts::value<decltype(cfg.https_port)>(cfg.https_port))  
+                              cxxopts::value<decltype(cfg.https_port)>())
 
                               ("o, log-output", "specify logging output (file, console)",  
-                              cxxopts::value<std::string>(log_type)->default_value("console"))
+                              cxxopts::value<std::string>())
 
                               ("r, run-mode", "specify running mode (persist, single-request)",
-                              cxxopts::value<std::string>(running_mode)->default_value("persist"))
+                              cxxopts::value<std::string>())
 
                               ("l, log-level", "specify log level (error, warning, trace, debug, critical, off) (default: info)",
-                              cxxopts::value<std::string>(log_level))
+                              cxxopts::value<std::string>())
 
                               ("c, cert-path", "specify https server certificate path",
-                              cxxopts::value<std::string>(cfg.srv_cert_path)->default_value("cert/server.crt"))
+                              cxxopts::value<std::string>())
 
                               ("k, private-key", "specify https server private key path",
-                              cxxopts::value<std::string>(cfg.srv_private_key_path)->default_value("cert/server.key"))
+                              cxxopts::value<std::string>())
 
                               ("i, ignore-cert-verification", "ignore SSL certificate verification for outgoing requests",
-                              cxxopts::value<bool>(cfg.ignore_certificate_verification)->default_value("false"))
+                              cxxopts::value<bool>()->implicit_value("true"))
 
                               ("H, upstream-host", "specify upstream host for proxying outgoing requests",    
-                              cxxopts::value<std::string>(cfg.upstream_host)->default_value(cfg.upstream_host))
+                              cxxopts::value<std::string>())
 
                               ("P, upstream-port", "specify upstream port for proxying outgoing requests (default: 443)",
-                              cxxopts::value<decltype(cfg.upstream_port)>(cfg.upstream_port))
+                              cxxopts::value<decltype(cfg.upstream_port)>())
 
                               ("a, allow-https-over-http-port", "allow HTTPS requests over HTTP port",
-                              cxxopts::value<bool>(cfg.allow_https_over_http_port)->default_value("false"))
+                              cxxopts::value<bool>()->implicit_value("true"))
+
+                              ("config", "load configuration from a JSON file",
+                              cxxopts::value<std::string>(cfg.config_path))
 
                               ("h, help", "print usage");
         // clang-format on
@@ -68,19 +71,18 @@ inline std::pair<int, bool> process_arguments(int argc, char* argv[], Config& cf
             result.second = true;
         else
         {
-            if (!log_level.empty())
-                cfg.log_level = spdlog::level::from_str(log_level);
-            if (!log_type.empty())
+            if (parsed_cfg.count("config"))
             {
-                if ((log_type == "con") || (log_type == "console"))
-                    cfg.logger_type = LoggerType::Console;
-                else if (log_type == "file")
-                    cfg.logger_type = LoggerType::File;
+                cfg_loader.assign_path(cfg.config_path);
+                load_json_config(cfg_loader, cfg);
             }
-            if (!running_mode.empty())
+
+            merge_parsed_arguments(parsed_cfg, cfg);
+
+            if (cfg.http_port == cfg.https_port)
             {
-                if (running_mode == "single-request")
-                    cfg.running_mode = ServerRunningMode::SingleRequest;
+                std::cout << "http-port and https-port must be different" << std::endl;
+                result.first = 1;
             }
         }
 
@@ -94,4 +96,61 @@ inline std::pair<int, bool> process_arguments(int argc, char* argv[], Config& cf
     }
 
     return result;
+}
+
+inline std::pair<int, bool> process_arguments(int argc, char* argv[], Config& cfg)
+{
+    LoadFromFile cfg_loader("");
+    return process_arguments(argc, argv, cfg_loader, cfg);
+}
+
+inline void merge_parsed_arguments(const cxxopts::ParseResult& parsed_args, Config& target_cfg)
+{
+    if (parsed_args.count("http-port"))
+        target_cfg.http_port = parsed_args["http-port"].as<decltype(target_cfg.http_port)>();
+
+    if (parsed_args.count("https-port"))
+        target_cfg.https_port = parsed_args["https-port"].as<decltype(target_cfg.https_port)>();
+
+    if (parsed_args.count("cert-path"))
+        target_cfg.srv_cert_path = parsed_args["cert-path"].as<std::string>();
+
+    if (parsed_args.count("private-key"))
+        target_cfg.srv_private_key_path = parsed_args["private-key"].as<std::string>();
+
+    if (parsed_args.count("ignore-cert-verification"))
+        target_cfg.ignore_certificate_verification =
+            parsed_args["ignore-cert-verification"].as<bool>();
+
+    if (parsed_args.count("upstream-host"))
+        target_cfg.upstream_host = parsed_args["upstream-host"].as<std::string>();
+
+    if (parsed_args.count("upstream-port"))
+        target_cfg.upstream_port = parsed_args["upstream-port"].as<decltype(target_cfg.upstream_port)>();
+
+    if (parsed_args.count("allow-https-over-http-port"))
+        target_cfg.allow_https_over_http_port =
+            parsed_args["allow-https-over-http-port"].as<bool>();
+
+    if (parsed_args.count("log-level"))
+        target_cfg.log_level = spdlog::level::from_str(
+            parsed_args["log-level"].as<std::string>());
+
+    if (parsed_args.count("log-output"))
+    {
+        const auto log_type = parsed_args["log-output"].as<std::string>();
+        if ((log_type == "con") || (log_type == "console"))
+            target_cfg.logger_type = LoggerType::Console;
+        else if (log_type == "file")
+            target_cfg.logger_type = LoggerType::File;
+    }
+
+    if (parsed_args.count("run-mode"))
+    {
+        const auto running_mode = parsed_args["run-mode"].as<std::string>();
+        if (running_mode == "single-request")
+            target_cfg.running_mode = ServerRunningMode::SingleRequest;
+        else if (running_mode == "persist")
+            target_cfg.running_mode = ServerRunningMode::Persistent;
+    }
 }
