@@ -100,6 +100,8 @@ void show_usage(const cxxopts::Options& options)
         R"(Command line samples:
     {app_name}
     {app_name} -h
+    {app_name} --config config/market-bridge.json
+    {app_name} --config config/market-bridge.json --http-port 9000
     {app_name} -p 8080
     {app_name} -l info
     {app_name} -o file)";

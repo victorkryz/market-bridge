@@ -68,11 +68,23 @@ if(NOT cxxopts_POPULATED)
 endif()
 
 
+# Fetch nlohmann_json
+FetchContent_Declare(
+    json
+    URL https://github.com/nlohmann/json/releases/download/v3.12.0/json.tar.xz
+    DOWNLOAD_EXTRACT_TIMESTAMP FALSE
+)
+
+FetchContent_GetProperties(json)
+if(NOT json_POPULATED)
+    FetchContent_MakeAvailable(json)
+endif()
+
 # Threads (needed on most POSIX systems)
 find_package(Threads REQUIRED)
 find_package(OpenSSL REQUIRED)
 
-file(GLOB SRC_FILES RELATIVE ${CMAKE_CURRENT_SOURCE_DIR} src/*.cpp src/*.h src/*.hpp src/*.c)
+file(GLOB SRC_FILES RELATIVE ${CMAKE_CURRENT_SOURCE_DIR} src/*.cpp src/*.h src/*.hpp src/*.c src/config/*.cpp)
 
 add_executable(${app} ${SRC_FILES})
 
@@ -82,6 +94,7 @@ target_include_directories(${app} PRIVATE
 target_link_libraries(${app} PRIVATE asio
     cxxopts
     spdlog::spdlog
+    nlohmann_json::nlohmann_json
     OpenSSL::SSL
     OpenSSL::Crypto)
 
