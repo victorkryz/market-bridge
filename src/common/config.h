@@ -22,4 +22,5 @@ struct Config
     std::string upstream_host = "api.binance.com";
     uint16_t upstream_port  = 443;
     bool allow_https_over_http_port = false;
+    std::string config_path = "";
 };
