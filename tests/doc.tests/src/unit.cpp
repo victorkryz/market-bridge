@@ -11,6 +11,25 @@
 
 bool gl_show_usage_called(false);
 
+namespace
+{
+    std::vector<std::string> argument_storage;
+    std::vector<char*> in_arguments;
+
+    void set_arguments(std::initializer_list<std::string> args)
+    {
+        argument_storage.assign(args);
+
+        in_arguments.clear();
+        in_arguments.reserve(argument_storage.size());
+
+        for (auto& arg : argument_storage)
+        {
+            in_arguments.push_back(arg.data());
+        }
+    }
+} // namespace
+
 TEST_SUITE("testing the command line processor suite")
 {
     TEST_CASE("testing the command line processor case")
@@ -20,7 +39,7 @@ TEST_SUITE("testing the command line processor suite")
 
         SUBCASE("empty command line")
         {
-            std::vector<char*> in_arguments = {"app"};
+            set_arguments({"app"});
 
             const auto [exit_code, usage_requested] =
                 process_arguments(in_arguments.size(), in_arguments.data(), cfg);
@@ -37,7 +56,7 @@ TEST_SUITE("testing the command line processor suite")
 
         SUBCASE("--help")
         {
-            std::vector<char*> in_arguments = {"app", "--help"};
+            set_arguments({"app", "--help"});
 
             const auto [exit_code, usage_requested] =
                 process_arguments(in_arguments.size(), in_arguments.data(), cfg);
@@ -51,7 +70,7 @@ TEST_SUITE("testing the command line processor suite")
             constexpr auto in_port = 8585u;
             doctest::String s = doctest::toString(in_port);
 
-            std::vector<char*> in_arguments = {"app", "--http-port", s.c_str()};
+            set_arguments({"app", "--http-port", s.c_str()});
 
             const auto [exit_code, usage_requested] =
                 process_arguments(in_arguments.size(), in_arguments.data(), cfg);
