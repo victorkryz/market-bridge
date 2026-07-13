@@ -29,9 +29,6 @@ target_compile_definitions(${test_module} PRIVATE
   DEFAULT_HTTP_PORT=8080
   DEFAULT_HTTPS_PORT=8443)
 
-if(UNIX)
-  target_compile_options(${test_module} PRIVATE -Wno-write-strings)
-endif()
 
 target_include_directories(${test_module} PRIVATE "${PROJECT_SOURCE_DIR}/src")
 

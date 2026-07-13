@@ -12,6 +12,10 @@
 #include <string_view>
 // clang-format on
 
+using namespace std::literals;
+
+bool gl_show_usage_called(false);
+
 constexpr std::string_view default_json_config = R"({
   "server": {
     "http_port": 8080,
@@ -34,8 +38,6 @@ constexpr std::string_view default_json_config = R"({
   }
 })";
 
-bool gl_show_usage_called(false);
-
 void show_usage(const cxxopts::Options& options)
 {
     gl_show_usage_called = true;
@@ -50,12 +52,28 @@ struct TestBase
     void SetUp()
     {
         gl_show_usage_called = false;
+        in_args_.clear();
+        argument_storage_.clear();
     };
 
     void TearDown() {};
 
+    void set_arguments(std::initializer_list<std::string> args)
+    {
+        argument_storage_.assign(args);
+
+        in_args_.clear();
+        in_args_.reserve(argument_storage_.size());
+
+        for (auto& arg : argument_storage_)
+        {
+            in_args_.push_back(arg.data());
+        }
+    }
+
     Config out_args_;
     Config default_args_;
+    std::vector<std::string> argument_storage_;
     std::vector<char*> in_args_;
 };
 
@@ -123,7 +141,7 @@ class RunMode_TS : protected TestBase,
 
 TEST_F(CommandLineTS, EmptyLineTest)
 {
-    in_args_ = {""};
+    set_arguments({""});
 
     const auto [exit_code, usage_requested] =
         process_arguments(in_args_.size(), in_args_.data(), out_args_);
@@ -146,7 +164,7 @@ TEST_F(CommandLineTS, EmptyLineTest)
 
 TEST_F(CommandLineTS, HelpArgTest)
 {
-    in_args_ = {"", "--help"};
+    set_arguments({"", "--help"});
 
     const auto [exit_code, usage_requested] =
         process_arguments(in_args_.size(), in_args_.data(), out_args_);
@@ -159,15 +177,16 @@ TEST_F(CommandLineTS, HelpArgTest)
 TEST_F(CommandLineTS, HttpPortArgTest)
 {
     constexpr auto in_port = 8585u;
-    std::string str_port = testing::PrintToString(in_port);
+    const std::string str_port = testing::PrintToString(in_port);
 
-    in_args_ = {"", "--http-port", str_port.data()};
+    set_arguments({"", "--http-port", str_port.data()});
 
     const auto [exit_code, usage_requested] =
         process_arguments(in_args_.size(), in_args_.data(), out_args_);
 
     EXPECT_EQ(exit_code, 0);
 
+    
     EXPECT_EQ(out_args_.http_port, in_port);
     EXPECT_EQ(out_args_.https_port, default_https_port);
     EXPECT_EQ(out_args_.log_level, spdlog::level::level_enum::info);
@@ -188,9 +207,9 @@ TEST_F(CommandLineTS, HttpPortArgTest)
 TEST_F(CommandLineTS, HttpsPortArgTest)
 {
     constexpr auto in_port = 9443u;
-    std::string str_port = testing::PrintToString(in_port);
+    const std::string str_port = testing::PrintToString(in_port);
 
-    in_args_ = {"", "--https-port", str_port.data()};
+    set_arguments({"", "--https-port", str_port.data()});
 
     const auto [exit_code, usage_requested] =
         process_arguments(in_args_.size(), in_args_.data(), out_args_);
@@ -216,10 +235,10 @@ TEST_F(CommandLineTS, HttpsPortArgTest)
 
 TEST_F(CommandLineTS, CertPathArgTest)
 {
-    std::string s_cert = "/etc/ssl/certs/server.crt",
-                s_private_key = "/etc/ssl/certs/server.key";
+    const std::string s_cert = "/etc/ssl/certs/server.crt",
+                      s_private_key = "/etc/ssl/certs/server.key";
 
-    in_args_ = {"", "--cert-path", s_cert.data(), "--private-key", s_private_key.data()};
+    set_arguments({"", "--cert-path", s_cert.data(), "--private-key", s_private_key.data()});
 
     const auto [exit_code, usage_requested] =
         process_arguments(in_args_.size(), in_args_.data(), out_args_);
@@ -246,7 +265,7 @@ TEST_F(CommandLineTS, CertPathArgTest)
 
 TEST_F(CommandLineTS, IgnoreCertificateVerificationArgTest)
 {
-    in_args_ = {"", "--ignore-cert-verification"};
+    set_arguments({"", "--ignore-cert-verification"});
 
     const auto [exit_code, usage_requested] =
         process_arguments(in_args_.size(), in_args_.data(), out_args_);
@@ -260,9 +279,10 @@ TEST_F(CommandLineTS, IgnoreCertificateVerificationArgTest)
     EXPECT_FALSE(gl_show_usage_called);
 }
 
+
 TEST_F(CommandLineTS, AllowHttpsOverHttpPortArgTest)
 {
-    in_args_ = {"", "--allow-https-over-http-port"};
+    set_arguments({"", "--allow-https-over-http-port"});
 
     const auto [exit_code, usage_requested] =
         process_arguments(in_args_.size(), in_args_.data(), out_args_);
@@ -275,10 +295,11 @@ TEST_F(CommandLineTS, AllowHttpsOverHttpPortArgTest)
     EXPECT_FALSE(gl_show_usage_called);
 }
 
+
 TEST_F(CommandLineTS, UpstreamHostArgTest)
 {
-    std::string in_host = "api.test.com";
-    in_args_ = {"", "--upstream-host", in_host.data()};
+    constexpr auto in_host = "api.test.com"sv;
+    set_arguments({"", "--upstream-host", in_host.data()});
 
     const auto [exit_code, usage_requested] =
         process_arguments(in_args_.size(), in_args_.data(), out_args_);
@@ -301,12 +322,13 @@ TEST_F(CommandLineTS, UpstreamHostArgTest)
     EXPECT_FALSE(gl_show_usage_called);
 }
 
+
 TEST_F(CommandLineTS, UpstreamPortArgTest)
 {
     constexpr auto in_port = 8443u;
-    std::string str_port = testing::PrintToString(in_port);
+    const std::string str_port = testing::PrintToString(in_port);
 
-    in_args_ = {"", "--upstream-port", str_port.data()};
+    set_arguments({"", "--upstream-port", str_port.data()});
 
     const auto [exit_code, usage_requested] =
         process_arguments(in_args_.size(), in_args_.data(), out_args_);
@@ -329,6 +351,7 @@ TEST_F(CommandLineTS, UpstreamPortArgTest)
     EXPECT_FALSE(gl_show_usage_called);
 }
 
+
 INSTANTIATE_TEST_SUITE_P(LogLevelArg,
                          LogLevel_TS,
                          ::testing::Values(
@@ -343,7 +366,7 @@ INSTANTIATE_TEST_SUITE_P(LogLevelArg,
 TEST_P(LogLevel_TS, LogLevelArg)
 {
     auto [log_level_str, spd_log_level] = GetParam();
-    in_args_ = {"", "--log-level", log_level_str.data()};
+    set_arguments({"", "--log-level", log_level_str.data()});
 
     const auto [exit_code, usage_requested] =
         process_arguments(in_args_.size(), in_args_.data(), out_args_);
@@ -369,7 +392,7 @@ INSTANTIATE_TEST_SUITE_P(LoggerType,
 TEST_P(LogType_TS, LoggerType)
 {
     auto [logger_type_str, logger_type] = GetParam();
-    in_args_ = {"", "--log-output", logger_type_str.data()};
+    set_arguments({"", "--log-output", logger_type_str.data()});
 
     const auto [exit_code, usage_requested] =
         process_arguments(in_args_.size(), in_args_.data(), out_args_);
@@ -394,7 +417,7 @@ INSTANTIATE_TEST_SUITE_P(RunMode,
 TEST_P(RunMode_TS, RunMode)
 {
     auto [run_mode_str, run_mode] = GetParam();
-    in_args_ = {"", "--run-mode", run_mode_str.data()};
+    set_arguments({"", "--run-mode", run_mode_str.data()});
 
     const auto [exit_code, usage_requested] =
         process_arguments(in_args_.size(), in_args_.data(), out_args_);
@@ -410,10 +433,11 @@ TEST_P(RunMode_TS, RunMode)
     EXPECT_FALSE(gl_show_usage_called);
 }
 
+
 TEST_F(CommandLineTS, DefaultJsonConfigTest)
 {
-    std::string s_config = "config.json";
-    in_args_ = {"", "--config", s_config.data()};
+    constexpr auto str_config = "config.json"sv;
+    set_arguments({"", "--config", str_config.data()});
 
     LoadFromString cfg_loader(default_json_config);
 
@@ -422,7 +446,7 @@ TEST_F(CommandLineTS, DefaultJsonConfigTest)
 
     EXPECT_EQ(exit_code, 0);
 
-    EXPECT_EQ(out_args_.config_path, s_config);
+    EXPECT_EQ(out_args_.config_path, str_config);
     EXPECT_EQ(out_args_.http_port, default_http_port);
     EXPECT_EQ(out_args_.https_port, default_https_port);
     EXPECT_EQ(out_args_.log_level, spdlog::level::level_enum::info);
@@ -442,8 +466,8 @@ TEST_F(CommandLineTS, DefaultJsonConfigTest)
 
 TEST_F(CommandLineTS, CustomJsonConfigTest)
 {
-    std::string s_config = "fake_config.json";
-    in_args_ = {"", "--config", s_config.data()};
+    constexpr auto str_config = "fake_config.json"sv;
+    set_arguments({"", "--config", str_config.data()});
 
     constexpr std::string_view json_config = R"({
         "server": {
@@ -465,7 +489,7 @@ TEST_F(CommandLineTS, CustomJsonConfigTest)
 
     EXPECT_EQ(exit_code, 0);
 
-    EXPECT_EQ(out_args_.config_path, s_config);
+    EXPECT_EQ(out_args_.config_path, str_config);
     EXPECT_EQ(out_args_.http_port, 9080u);
     EXPECT_EQ(out_args_.https_port, 9443u);
     EXPECT_EQ(out_args_.log_level, spdlog::level::level_enum::trace);
@@ -486,9 +510,9 @@ TEST_F(CommandLineTS, CustomJsonConfigTest)
 
 TEST_F(CommandLineTS, CustomJsonConfigTest2)
 {
-    std::string s_config = "fake_config.json";
-    in_args_ = {"", "--config", s_config.data()};
-
+    constexpr auto str_config = "fake_config.json"sv;
+    set_arguments({"", "--config", str_config.data()});
+    
     constexpr std::string_view json_config = R"({
 
         "upstream": {
@@ -509,7 +533,7 @@ TEST_F(CommandLineTS, CustomJsonConfigTest2)
 
     EXPECT_EQ(exit_code, 0);
 
-    EXPECT_EQ(out_args_.config_path, s_config);
+    EXPECT_EQ(out_args_.config_path, str_config);
     EXPECT_EQ(out_args_.http_port, default_http_port);
     EXPECT_EQ(out_args_.https_port, default_https_port);
     EXPECT_EQ(out_args_.log_level, spdlog::level::level_enum::off);
