@@ -159,9 +159,9 @@ TEST_F(CommandLineTS, HelpArgTest)
 TEST_F(CommandLineTS, HttpPortArgTest)
 {
     constexpr auto in_port = 8585u;
-    std::string s_port = testing::PrintToString(in_port);
+    std::string str_port = testing::PrintToString(in_port);
 
-    in_args_ = {"", "--http-port", s_port.data()};
+    in_args_ = {"", "--http-port", str_port.data()};
 
     const auto [exit_code, usage_requested] =
         process_arguments(in_args_.size(), in_args_.data(), out_args_);
@@ -188,9 +188,9 @@ TEST_F(CommandLineTS, HttpPortArgTest)
 TEST_F(CommandLineTS, HttpsPortArgTest)
 {
     constexpr auto in_port = 9443u;
-    std::string s_port = testing::PrintToString(in_port);
+    std::string str_port = testing::PrintToString(in_port);
 
-    in_args_ = {"", "--https-port", s_port.data()};
+    in_args_ = {"", "--https-port", str_port.data()};
 
     const auto [exit_code, usage_requested] =
         process_arguments(in_args_.size(), in_args_.data(), out_args_);
@@ -277,15 +277,15 @@ TEST_F(CommandLineTS, AllowHttpsOverHttpPortArgTest)
 
 TEST_F(CommandLineTS, UpstreamHostArgTest)
 {
-    std::string s_host = "api.test.com";
-    in_args_ = {"", "--upstream-host", s_host.data()};
+    std::string in_host = "api.test.com";
+    in_args_ = {"", "--upstream-host", in_host.data()};
 
     const auto [exit_code, usage_requested] =
         process_arguments(in_args_.size(), in_args_.data(), out_args_);
 
     EXPECT_EQ(exit_code, 0);
 
-    EXPECT_EQ(out_args_.upstream_host, s_host);
+    EXPECT_EQ(out_args_.upstream_host, in_host);
     EXPECT_EQ(out_args_.http_port, default_http_port);
     EXPECT_EQ(out_args_.log_level, spdlog::level::level_enum::info);
     EXPECT_EQ(out_args_.running_mode, ServerRunningMode::Persistent);
@@ -304,9 +304,9 @@ TEST_F(CommandLineTS, UpstreamHostArgTest)
 TEST_F(CommandLineTS, UpstreamPortArgTest)
 {
     constexpr auto in_port = 8443u;
-    std::string s_port = testing::PrintToString(in_port);
+    std::string str_port = testing::PrintToString(in_port);
 
-    in_args_ = {"", "--upstream-port", s_port.data()};
+    in_args_ = {"", "--upstream-port", str_port.data()};
 
     const auto [exit_code, usage_requested] =
         process_arguments(in_args_.size(), in_args_.data(), out_args_);
