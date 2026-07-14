@@ -123,7 +123,7 @@ jobs:
           curl -s http://localhost:8081/__admin/mappings
 
 
-      - name: Run ${{env.APP_NAME}} to test again WireMock (HTTP protocol)
+      - name: Run ${{env.APP_NAME}} to test again WireMock
         shell: bash
         working-directory: ${{github.workspace}}/${{env.INSTALL_DIRECTORY}}
         run: | 
@@ -136,15 +136,21 @@ jobs:
                               --ignore-cert-verification \
                               --run-mode persist  &
           sleep 1s
-          curl -s http://localhost:9080/api/v3/ticker/24hr?symbol=ETHUSDT
-          curl -k -s https://localhost:8443/api/v3/ticker/24hr?symbol=ETHUSDT
-          diff -u <(curl -s http://localhost:9080/api/v3/ticker/24hr?symbol=ETHUSDT) \
-                  <(curl -k -s https://localhost:8443/api/v3/ticker/24hr?symbol=ETHUSDT)
-          echo "Test passed: responses from WireMock and market-bridge are identical"
 
-      - name: Pause ...
+      - name: Test again WireMock (HTTP protocol)
         shell: bash
-        run: sleep 2
+        run: | 
+            diff -u <(curl -s http://localhost:9080/api/v3/ticker/24hr?symbol=ETHUSDT) \
+                  <(curl -k -s https://localhost:8443/api/v3/ticker/24hr?symbol=ETHUSDT)
+            echo "Test passed: responses from WireMock and market-bridge are identical"
+
+      
+      - name: Test again WireMock (HTTPS protocol)
+        shell: bash
+        run: | 
+            diff -u <(curl -k -s https://localhost:9443/api/v3/time) \
+                  <(curl -k -s https://localhost:8443/api/v3/time)
+            echo "Test passed: responses from WireMock and market-bridge are identical"
 
 
       # - name: Run ${{env.APP_NAME}} to test again WireMock (HTTPS protocol)
