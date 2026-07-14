@@ -57,9 +57,111 @@ jobs:
 
       - name: Check installation
         working-directory: ${{github.workspace}}/${{env.INSTALL_DIRECTORY}}
-        run: dir bin
+        run: | 
+          dir bin
+          dir bin/cert
 
       - name: Run ${{env.APP_NAME}}
         working-directory: ${{github.workspace}}/${{env.INSTALL_DIRECTORY}}
         run: bin/${{env.APP_NAME}} --help
+
+      - name: Download WireMock
+        shell: pwsh
+        run: |
+          Invoke-WebRequest `
+          -Uri "https://repo1.maven.org/maven2/org/wiremock/wiremock-standalone/3.13.2/wiremock-standalone-3.13.2.jar" `
+          -OutFile "wiremock-standalone.jar"
+
+      # - name: Prepare mappings for WireMock
+      #   shell: cmd
+      #   run: |
+      #     mklink /D ${{github.workspace}}\tests\fixtures\wiremock\mappings  ${{github.workspace}}\tests\fixtures\wiremock\requests
+      #     dir ${{github.workspace}}\tests\fixtures\wiremock\mappings
+
+      - name: Prepare mappings for WireMock
+        shell: pwsh
+        run: |
+            New-Item -ItemType Directory `
+            -Path "$env:GITHUB_WORKSPACE\tests\fixtures\wiremock\mappings"
+            Copy-Item `
+                -Recurse `
+                "${{ github.workspace }}\tests\fixtures\wiremock\requests\*" `
+                "${{ github.workspace }}\tests\fixtures\wiremock\mappings"
+                
+      - name: Start WireMock
+        shell: pwsh
+        run: |
+          Start-Process java `
+            -ArgumentList @(
+              "-jar",
+              "wiremock-standalone.jar",
+              "--port", "8081",
+              "--https-port", "8443",
+              "--root-dir", "${{ github.workspace }}\tests\fixtures\wiremock"
+            )
+
+      - name: Wait for WireMock to be ready
+        shell: bash
+        run: |
+          echo "Waiting for WireMock to be ready..."
+
+          for attempt in {1..30}; do
+            if curl -fs http://localhost:8081/__admin/ > /dev/null; then
+              echo "WireMock is ready!"
+              exit 0
+            fi
+
+            sleep 1
+          done
+
+          echo "WireMock did not become ready"
+          exit 1
+
+      - name: Check WireMock mapping
+        shell: bash
+        run: |
+          curl -s http://localhost:8081/__admin/mappings
+
+
+      - name: Run ${{env.APP_NAME}} to test again WireMock (HTTP protocol)
+        shell: bash
+        working-directory: ${{github.workspace}}/${{env.INSTALL_DIRECTORY}}
+        run: | 
+          cd bin
+          ./${{env.APP_NAME}}	--log-level trace \
+                              --http-port 9080 \
+                              --https-port 9443 \
+                              --upstream-host "localhost" \
+                              --upstream-port 8443 \
+                              --ignore-cert-verification \
+                              --run-mode persist  &
+          sleep 1s
+          curl -s http://localhost:9080/api/v3/ticker/24hr?symbol=ETHUSDT
+          curl -k -s https://localhost:8443/api/v3/ticker/24hr?symbol=ETHUSDT
+          diff -u <(curl -s http://localhost:9080/api/v3/ticker/24hr?symbol=ETHUSDT) \
+                  <(curl -k -s https://localhost:8443/api/v3/ticker/24hr?symbol=ETHUSDT)
+          echo "Test passed: responses from WireMock and market-bridge are identical"
+
+      - name: Pause ...
+        shell: bash
+        run: sleep 2
+
+
+      # - name: Run ${{env.APP_NAME}} to test again WireMock (HTTPS protocol)
+      #   shell: bash
+      #   working-directory: ${{github.workspace}}/${{env.INSTALL_DIRECTORY}}
+      #   run: | 
+      #     cd bin
+          # ./${{env.APP_NAME}}	--log-level trace \
+      #                         --http-port 9080 \
+      #                         --https-port 9443 \
+      #                         --upstream-host "localhost" \
+      #                         --upstream-port 8443 \
+      #                         --ignore-cert-verification \
+      #                         --run-mode single-request &
+      #     sleep 1s
+      #     diff -u <(curl -k -s https://localhost:9443/api/v3/time) \
+      #             <(curl -k -s https://localhost:8443/api/v3/time)
+      #     echo "Test passed: responses from WireMock and market-bridge are identical"
+
       
