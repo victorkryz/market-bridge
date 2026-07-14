@@ -141,6 +141,13 @@ jobs:
                  <(curl -k -s https://localhost:8443/api/v3/ticker/24hr?symbol=ETHUSDT)
           echo "Test passed: responses from WireMock and market-bridge are identical"
 
+          
+          echo "8443: Testing HTTPS protocol"
+          curl -k -s https://localhost:8443/api/v3/time
+
+          echo "9443: Testing HTTPS protocol"
+          curl -k -s https://localhost:9443/api/v3/time
+
           diff -u <(curl -k -s https://localhost:9443/api/v3/time) \
                   <(curl -k -s https://localhost:8443/api/v3/time)
           echo "Test passed: responses from WireMock and market-bridge are identical"
