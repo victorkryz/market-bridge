@@ -146,7 +146,7 @@ jobs:
           curl -k -s https://localhost:8443/api/v3/time
 
           echo "9443: Testing HTTPS protocol"
-          curl -k -s https://localhost:9443/api/v3/time
+          curl -s http://localhost:9080/api/v3/ticker/24hr?symbol=ETHUSDT
 
           diff -u <(curl -k -s https://localhost:9443/api/v3/time) \
                   <(curl -k -s https://localhost:8443/api/v3/time)
