@@ -134,7 +134,7 @@ jobs:
                               --upstream-host "localhost" \
                               --upstream-port 8443 \
                               --ignore-cert-verification \
-                              --run-mode single-request  &
+                              --run-mode persist &
           sleep 1s
 
           diff -u <(curl -s http://localhost:9080/api/v3/ticker/24hr?symbol=ETHUSDT) \
