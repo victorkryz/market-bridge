@@ -64,6 +64,9 @@ void Server::listener(asio::ip::tcp::acceptor& acceptor,
     acceptor.async_accept(
         [this, &acceptor, completion_handler](const asio::error_code& ec, asio::ip::tcp::socket socket)
         {
+            if (is_aborted(ec))
+                return;
+
             if (check_ec(ec, __func__))
             {
                 gl_logger->info("Server accepted connection");
