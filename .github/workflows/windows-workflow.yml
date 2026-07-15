@@ -134,56 +134,12 @@ jobs:
                               --upstream-host "localhost" \
                               --upstream-port 8443 \
                               --ignore-cert-verification \
-                              --run-mode persist  &
+                              --run-mode single-request  &
           sleep 1s
 
           diff -u <(curl -s http://localhost:9080/api/v3/ticker/24hr?symbol=ETHUSDT) \
                  <(curl -k -s https://localhost:8443/api/v3/ticker/24hr?symbol=ETHUSDT)
           echo "Test passed: responses from WireMock and market-bridge are identical"
 
-          
-          echo "8443: Testing HTTPS protocol"
-          curl -k -s https://localhost:8443/api/v3/time
-
-          echo "9443: Testing HTTPS protocol"
-          curl -s http://localhost:9080/api/v3/ticker/24hr?symbol=ETHUSDT
-
-          diff -u <(curl -k -s https://localhost:9443/api/v3/time) \
-                  <(curl -k -s https://localhost:8443/api/v3/time)
-          echo "Test passed: responses from WireMock and market-bridge are identical"
-
-
-      # - name: Test again WireMock (HTTP protocol)
-      #   shell: bash
-      #   run: | 
-      #       diff -u <(curl -s http://localhost:9080/api/v3/ticker/24hr?symbol=ETHUSDT) \
-      #             <(curl -k -s https://localhost:8443/api/v3/ticker/24hr?symbol=ETHUSDT)
-      #       echo "Test passed: responses from WireMock and market-bridge are identical"
-
-      
-      # - name: Test again WireMock (HTTPS protocol)
-      #   shell: bash
-      #   run: | 
-      #       diff -u <(curl -k -s https://localhost:9443/api/v3/time) \
-      #             <(curl -k -s https://localhost:8443/api/v3/time)
-      #       echo "Test passed: responses from WireMock and market-bridge are identical"
-
-
-      # - name: Run ${{env.APP_NAME}} to test again WireMock (HTTPS protocol)
-      #   shell: bash
-      #   working-directory: ${{github.workspace}}/${{env.INSTALL_DIRECTORY}}
-      #   run: | 
-      #     cd bin
-          # ./${{env.APP_NAME}}	--log-level trace \
-      #                         --http-port 9080 \
-      #                         --https-port 9443 \
-      #                         --upstream-host "localhost" \
-      #                         --upstream-port 8443 \
-      #                         --ignore-cert-verification \
-      #                         --run-mode single-request &
-      #     sleep 1s
-      #     diff -u <(curl -k -s https://localhost:9443/api/v3/time) \
-      #             <(curl -k -s https://localhost:8443/api/v3/time)
-      #     echo "Test passed: responses from WireMock and market-bridge are identical"
-
-      
+         
+            
