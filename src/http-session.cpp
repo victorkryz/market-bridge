@@ -1,4 +1,5 @@
 #include "http-session.h"
+#include <string_view>
 
 #include <asio.hpp>
 #include <asio/ssl.hpp>
@@ -7,6 +8,8 @@
 
 #include "utils/session-helper.h"
 #include "logs/logger.h"
+
+using namespace std::literals;
 
 template <typename T>
 HTTPSession<T>::HTTPSession(const Config& cfg,
@@ -177,12 +180,55 @@ void HTTPSession<T>::on_request(HttpRequest request)
     if (this->is_stopped())
         return;
 
-    auto self = this->shared_from_this();
-    request_ = std::move(request);
+    gl_logger->trace("Request: {}", request.to_string());
 
-    auto outgoing_session = std::make_shared<HTTPSession<T>::OutgoingSession>(self);
-    outgoing_session_ = outgoing_session;
-    outgoing_session->start();
+    if (request.target == "/health")
+    {
+        on_health_request(std::move(request));
+    }
+    else
+    {
+        auto self = this->shared_from_this();
+        request_ = std::move(request);
+
+        auto outgoing_session = std::make_shared<HTTPSession<T>::OutgoingSession>(self);
+        outgoing_session_ = outgoing_session;
+        outgoing_session->start();
+    }
+}
+
+template <typename T>
+void HTTPSession<T>::on_health_request(HttpRequest request)
+{
+    constexpr std::string_view response_body_template = R"(
+                                    {{
+                                        "service": "{}",
+                                        "status": "{}",
+                                        "version": "{}" 
+                                    }})"sv;
+    HttpResponse response;
+    response.status_code = static_cast<int>(HTTPResponseCodes::OK);
+    response.reason = "OK";
+    response.body = fmt::format(response_body_template, APP_NAME, "UP", APP_VERSION);
+    response.headers["Content-Type"] = "application/json";
+    response.headers["Content-Length"] = std::to_string(response.body.size());
+    response.headers["Connection"] = "close";
+
+    response_ = std::move(response.to_string());
+    auto buff = asio::buffer(response_);
+
+    auto self = this->shared_from_this();
+    asio::async_write(http_stream_, buff,
+                      asio::bind_executor(
+                          strand_,
+                          [self, this](const asio::error_code& ec, std::size_t)
+                          {
+                              if (check_ec(ec, __func__))
+                              {
+                                  gl_logger->info("HTTPSession id: {}, response sent: {}",
+                                                  this->get_session_id(), response_);
+                              }
+                          }));
 }
 
 template <typename T>
