@@ -137,6 +137,10 @@ jobs:
                               --run-mode persist &
           sleep 1s
 
+          echo -e "\nChecking health state of market-bridge..."  
+          curl "http://localhost:9080/health"
+
+          echo -e "\nTesting market-bridge response identical to WireMock response..."  
           diff -u <(curl -s http://localhost:9080/api/v3/ticker/24hr?symbol=ETHUSDT) \
                  <(curl -k -s https://localhost:8443/api/v3/ticker/24hr?symbol=ETHUSDT)
           echo "Test passed: responses from WireMock and market-bridge are identical"
