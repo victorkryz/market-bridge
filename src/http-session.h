@@ -108,6 +108,7 @@ protected:
     void on_header_timeout(const asio::error_code& ec);
     void on_write(const asio::error_code& ec, std::size_t n);
     void on_request(HttpRequest request);
+    void on_health_request(HttpRequest request);
     void on_outgoing_session_completed(std::string response);
     void on_outgoing_session_failed(const asio::error_code& ec);
 
