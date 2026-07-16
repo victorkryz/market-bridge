@@ -1,0 +1,13 @@
+{
+  "request": {
+    "method": "GET",
+    "url": "/api/v3/ticker/24hr?symbol=ETHUSDT"
+  },
+  "response": {
+    "status": 200,
+    "body": "{\n    \"symbol\": \"ETHUSDT\",\n    \"priceChange\": \"9.36000000\",\n    \"priceChangePercent\": \"0.465\",\n    \"weightedAvgPrice\": \"2017.46445742\",\n    \"prevClosePrice\": \"2011.09000000\",\n    \"lastPrice\": \"2020.46000000\",\n    \"lastQty\": \"0.49490000\",\n    \"bidPrice\": \"2020.45000000\",\n    \"bidQty\": \"71.21850000\",\n    \"askPrice\": \"2020.46000000\",\n    \"askQty\": \"10.67920000\",\n    \"openPrice\": \"2011.10000000\",\n    \"highPrice\": \"2046.59000000\",\n    \"lowPrice\": \"1976.48000000\",\n    \"volume\": \"246506.78700000\",\n    \"quoteVolume\": \"497318681.28496700\",\n    \"openTime\": 1780051331009,\n    \"closeTime\": 1780137731009,\n    \"firstId\": 4052784173,\n    \"lastId\": 4055390049,\n    \"count\": 2605877\n}",
+    "headers": {
+      "Content-Type": "application/json"
+    }
+  }
+}
