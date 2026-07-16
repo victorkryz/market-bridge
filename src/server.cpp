@@ -66,7 +66,11 @@ awaitable<void> Server::listener(asio::ip::tcp::acceptor& acceptor,
             co_await acceptor.async_accept(io_, asio::as_tuple(asio::use_awaitable));
 
         // Explicit for aborted state (e.g. acceptor closed)
-        if (is_aborted(ec) || !check_ec(ec))
+
+        if (is_aborted(ec) )
+            co_return;
+
+        if ( !check_ec(ec))
             break;
 
         gl_logger->info("Server accepted connection");

@@ -1,10 +1,13 @@
 #include "http-session.h"
+#include <string_view>
 
 #include <asio.hpp>
 #include <asio/ssl.hpp>
 #include <spdlog/fmt/fmt.h>
 
 #include "logs/logger.h"
+
+using namespace std::literals;
 
 template <typename Stream>
 auto& lowest_socket(Stream& stream)
@@ -24,19 +27,19 @@ HTTPSession<T>::HTTPSession(const Config& cfg,
                                                        tls_context_(asio::ssl::context::tls_client),
                                                        upstream_info_{cfg.upstream_host, cfg.upstream_port, cfg.ignore_certificate_verification}
 {
-    gl_logger->trace("HTTPSession constructed, id: {}", id_);
+    gl_logger->trace("HTTPSession constructed, id: {}", this->get_session_id());
 }
 
 template <typename T>
 HTTPSession<T>::~HTTPSession()
 {
-    gl_logger->trace("HTTPSession destructed, id: {}", id_);
+    gl_logger->trace("HTTPSession destructed, id: {}", this->get_session_id());
 }
 
 template <typename T>
 void HTTPSession<T>::start()
 {
-    gl_logger->info("HTTPSession started, id: {} ...", id_);
+    gl_logger->info("HTTPSession started, id: {} ...", this->get_session_id());
 
     asio::co_spawn(strand_, start_impl(), asio::detached);
 }
@@ -44,7 +47,7 @@ void HTTPSession<T>::start()
 template <typename T>
 void HTTPSession<T>::stop()
 {
-    gl_logger->info("HTTPSession session, stop pending, id: {} ...", id_);
+    gl_logger->info("HTTPSession session, stop pending, id: {} ...", this->get_session_id());
     stopped_ = true;
 }
 
@@ -55,7 +58,7 @@ awaitable<void> HTTPSession<T>::start_impl()
 
     if (!init_tls_context())
     {
-        gl_logger->info("HTTPSession failed, id: {} ...", id_);
+        gl_logger->info("HTTPSession failed, id: {} ...", this->get_session_id());
         co_return;
     }
 
@@ -181,19 +184,62 @@ void HTTPSession<T>::on_request(HttpRequest request)
     if (stopped_)
         return;
 
-    request_ = std::move(request);
+    gl_logger->trace("Request: {}", request.to_string());
+
+    if (request.target == "/health")
+    {
+        asio::co_spawn(strand_, on_health_request(std::move(request)), asio::detached);
+    }
+    else
+    {
+        request_ = std::move(request);
+
+        auto self = this->shared_from_this();
+        auto outgoing_session = std::make_shared<HTTPSession::OutgoingSession>(self);
+
+        outgoing_session->start();
+    }
+}
+
+template <typename T>
+awaitable<void> HTTPSession<T>::on_health_request(HttpRequest request)
+{
+    constexpr std::string_view response_body_template = R"(
+                                    {{
+                                        "service": "{}",
+                                        "status": "{}",
+                                        "version": "{}" 
+                                    }})"sv;
+    HttpResponse response;
+    response.status_code = static_cast<int>(HTTPResponseCodes::OK);
+    response.reason = "OK";
+    response.body = fmt::format(response_body_template, APP_NAME, "UP", APP_VERSION);
+    response.headers["Content-Type"] = "application/json";
+    response.headers["Content-Length"] = std::to_string(response.body.size());
+    response.headers["Connection"] = "close";
+
+    response_ = std::move(response.to_string());
+    auto buff = asio::buffer(response_);
 
     auto self = this->shared_from_this();
-    auto outgoing_session = std::make_shared<HTTPSession::OutgoingSession>(self);
 
-    outgoing_session->start();
+    auto [ec, _] = co_await asio::async_write(http_stream_, buff,
+                                              asio::as_tuple(use_awaitable));
+
+    if (check_ec(ec))
+    {
+        gl_logger->info("HTTPSession id: {}, response sent: {}",
+                        this->get_session_id(), response_);
+    }
 }
 
 template <typename T>
 awaitable<void> HTTPSession<T>::on_outgoing_session_completed(const asio::error_code& ec_in, std::string response)
 {
-    gl_logger->info("OutgoingSession completed, id: {}", id_);
+    gl_logger->info("OutgoingSession completed, id: {}", this->get_session_id());
     gl_logger->trace("Response {}", response);
+
+    auto self = this->shared_from_this();
 
     response_ = std::move(response);
 
@@ -252,6 +298,8 @@ awaitable<void> HTTPSession<T>::OutgoingSession::start_impl()
 template <typename T>
 awaitable<void> HTTPSession<T>::OutgoingSession::connect(const tcp::resolver::results_type& endpoints)
 {
+    auto self = this->shared_from_this();
+
     auto [ec, _] =
         co_await asio::async_connect(stream_.next_layer(), endpoints, asio::as_tuple(use_awaitable));
 
@@ -266,6 +314,7 @@ awaitable<void> HTTPSession<T>::OutgoingSession::on_connect()
 {
     gl_logger->info("OutgoingSession connected, id: {}", context_.session_id);
 
+    auto self = this->shared_from_this();
     co_await stream_.async_handshake(asio::ssl::stream_base::client, use_awaitable);
 
     co_await send_request();
@@ -275,6 +324,8 @@ template <typename T>
 awaitable<void> HTTPSession<T>::OutgoingSession::send_request()
 {
     generate_request();
+
+    auto self = this->shared_from_this();
 
     auto [ec, _] =
         co_await asio::async_write(stream_, asio::buffer(http_request_), asio::as_tuple(use_awaitable));
@@ -288,6 +339,8 @@ awaitable<void> HTTPSession<T>::OutgoingSession::send_request()
 template <typename T>
 awaitable<void> HTTPSession<T>::OutgoingSession::read_response()
 {
+    auto self = this->shared_from_this();
+
     auto [ec, n] =
         co_await stream_.async_read_some(asio::buffer(buffer_), asio::as_tuple(use_awaitable));
 

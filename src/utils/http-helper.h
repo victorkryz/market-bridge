@@ -38,6 +38,21 @@ struct HttpRequest
     std::string version;
     std::map<std::string, std::string> headers;
     std::string body;
+
+    std::string to_string() const
+    {
+        auto constexpr rn = "\r\n";
+
+        std::ostringstream oss;
+        oss << method << ' ' << target << ' ' << version << rn;
+        for (auto const& kv : headers)
+        {
+            oss << kv.first << ": " << kv.second << rn;
+        }
+        oss << rn;
+        oss << body;
+        return oss.str();
+    }
 };
 
 struct HttpResponse

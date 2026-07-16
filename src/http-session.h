@@ -96,7 +96,7 @@ public:
     void stop() override;
     uint64_t get_id() override
     {
-        return id_;
+        return SessionBase<TSession>::get_session_id();
     }
 
 protected:
@@ -106,6 +106,7 @@ protected:
         return {io_, strand_, tls_context_, request_, SessionBase<TSession>::id_, upstream_info_};
     }
     void on_request(HttpRequest request);
+    awaitable<void> on_health_request(HttpRequest request);
     awaitable<void> on_outgoing_session_completed(const asio::error_code& ec, std::string response);
     void shutdown();
 
@@ -125,7 +126,6 @@ private:
     std::size_t content_length_ = 0;
     asio::ssl::context tls_context_;
     std::string response_;
-    uint64_t id_{0};
     bool stopped_ = false;
     std::once_flag socket_shutdown_flag_;
     UpstreamInfo upstream_info_;
