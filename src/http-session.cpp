@@ -105,7 +105,7 @@ awaitable<void> HTTPSession<T>::obtain_header()
                                                           {
                                                               if (!is_aborted(ec))
                                                               {
-                                                                  on_header_timeout(ec);
+                                                                  co_spawn(strand_, on_header_timeout(ec), asio::detached);
                                                               }
                                                           }));
 
@@ -120,7 +120,7 @@ awaitable<void> HTTPSession<T>::obtain_header()
 }
 
 template <typename T>
-void HTTPSession<T>::on_header_obtained(const asio::error_code& ec, std::size_t bytes_transferred)
+void HTTPSession<T>::on_header_obtained(asio::error_code ec, std::size_t bytes_transferred)
 {
     if (is_aborted(ec) ||
         this->is_stopped())
@@ -141,19 +141,19 @@ void HTTPSession<T>::on_header_obtained(const asio::error_code& ec, std::size_t 
 }
 
 template <typename T>
-void HTTPSession<T>::on_header_timeout(const asio::error_code& ec)
+awaitable<void> HTTPSession<T>::on_header_timeout(asio::error_code ec)
 {
     if (is_cancelled(ec))
-        return; // timeout cancelled because header was obtained
+        co_return; // timeout cancelled because header was obtained
 
     if (!check_ec(ec))
     {
         stop();
-        return;
+        co_return;
     }
 
     if (!this->request_stop())
-        return;
+        co_return;
 
     static constexpr std::string_view response_body = "Request Timeout";
 
@@ -162,20 +162,18 @@ void HTTPSession<T>::on_header_timeout(const asio::error_code& ec)
     auto buff = asio::buffer(response_);
 
     auto self = this->shared_from_this();
-    asio::async_write(http_stream_, buff,
-                      asio::bind_executor(
-                          strand_,
-                          [self, this, response = response_body](const asio::error_code& ec, std::size_t)
-                          {
-                              if (check_ec(ec))
-                              {
-                                  gl_logger->info("HTTPSession id: {}, response sent: {}",
-                                                  this->get_session_id(), response);
-                              }
 
-                              gl_logger->info("HTTPSession id: {}, header read timeout, shutting down...", this->get_session_id());
-                              self->shutdown();
-                          }));
+    auto [write_ec, _] = co_await asio::async_write(http_stream_, buff,
+                                                    asio::as_tuple(use_awaitable));
+
+    if (check_ec(write_ec))
+    {
+        gl_logger->info("HTTPSession id: {}, response sent: {}",
+                        this->get_session_id(), response_);
+    }
+
+    gl_logger->info("HTTPSession id: {}, header read timeout, shutting down...", this->get_session_id());
+    self->shutdown();
 }
 
 template <typename T>
@@ -234,7 +232,7 @@ awaitable<void> HTTPSession<T>::on_health_request(HttpRequest request)
 }
 
 template <typename T>
-awaitable<void> HTTPSession<T>::on_outgoing_session_completed(const asio::error_code& ec_in, std::string response)
+awaitable<void> HTTPSession<T>::on_outgoing_session_completed(asio::error_code ec_in, std::string response)
 {
     gl_logger->info("OutgoingSession completed, id: {}", this->get_session_id());
     gl_logger->trace("Response {}", response);

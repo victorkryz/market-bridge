@@ -107,14 +107,14 @@ protected:
     }
     void on_request(HttpRequest request);
     awaitable<void> on_health_request(HttpRequest request);
-    awaitable<void> on_outgoing_session_completed(const asio::error_code& ec, std::string response);
+    awaitable<void> on_outgoing_session_completed(asio::error_code ec, std::string response);
     void shutdown();
 
 private:
     bool init_tls_context();
     awaitable<void> obtain_header();
-    void on_header_obtained(const asio::error_code& ec, std::size_t bytes_transferred);
-    void on_header_timeout(const asio::error_code& ec);
+    void on_header_obtained(asio::error_code ec, std::size_t bytes_transferred);
+    awaitable<void> on_header_timeout(asio::error_code ec);
 
 private:
     asio::io_context& io_;
