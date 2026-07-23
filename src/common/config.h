@@ -23,4 +23,5 @@ struct Config
     uint16_t upstream_port  = 443;
     bool allow_https_over_http_port = false;
     std::string config_path = "";
+    uint16_t worker_threads = 3;
 };

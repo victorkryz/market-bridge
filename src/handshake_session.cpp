@@ -11,6 +11,7 @@ HandshakeSession::HandshakeSession(HandshakeSession::ssl_stream&& stream,
                                                                                                     id_(id),
                                                                                                     handshake_completion_notifier_(std::move(handshake_completion_notifier))
 {
+    gl_logger->trace("HandshakeSession constructed, id: {}", id_);
 }
 
 HandshakeSession::~HandshakeSession()
@@ -33,7 +34,7 @@ awaitable<void> HandshakeSession::start_impl()
     auto [ec] =
         co_await stream_.async_handshake(asio::ssl::stream_base::server, asio::as_tuple(use_awaitable));
 
-    if (check_ec(ec, __func__))
+    if (check_ec(ec))
     {
         gl_logger->info("Handshake succeeded!, session id: {}", id_);
 

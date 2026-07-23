@@ -5,18 +5,10 @@
 #include <asio/ssl.hpp>
 #include <spdlog/fmt/fmt.h>
 
+#include "utils/session-helper.h"
 #include "logs/logger.h"
 
 using namespace std::literals;
-
-template <typename Stream>
-auto& lowest_socket(Stream& stream)
-{
-    if constexpr (std::is_same_v<Stream, tcp::socket>)
-        return stream;
-    else if constexpr (std::is_same_v<Stream, asio::ssl::stream<tcp::socket>>)
-        return stream.lowest_layer();
-}
 
 template <typename T>
 HTTPSession<T>::HTTPSession(const Config& cfg,
@@ -25,7 +17,11 @@ HTTPSession<T>::HTTPSession(const Config& cfg,
                                                        io_(io), http_stream_(std::move(socket)),
                                                        strand_(asio::make_strand(http_stream_.get_executor())),
                                                        tls_context_(asio::ssl::context::tls_client),
-                                                       upstream_info_{cfg.upstream_host, cfg.upstream_port, cfg.ignore_certificate_verification}
+                                                       upstream_info_{
+                                                           .host = cfg.upstream_host,
+                                                           .port = cfg.upstream_port,
+                                                           .ignore_certificate_verification =
+                                                               cfg.ignore_certificate_verification}
 {
     gl_logger->trace("HTTPSession constructed, id: {}", this->get_session_id());
 }
@@ -47,8 +43,14 @@ void HTTPSession<T>::start()
 template <typename T>
 void HTTPSession<T>::stop()
 {
-    gl_logger->info("HTTPSession session, stop pending, id: {} ...", this->get_session_id());
-    stopped_ = true;
+    auto self = this->shared_from_this();
+    asio::dispatch(strand_, [this, self]()
+                   { 
+                        if (self->request_stop())
+                        {  
+                            gl_logger->info("HTTPSession session, stop pending, id: {} ...",  this->get_session_id());
+                            self->shutdown(); 
+                        } });
 }
 
 template <typename T>
@@ -168,7 +170,7 @@ awaitable<void> HTTPSession<T>::on_header_timeout(asio::error_code ec)
 
     if (check_ec(write_ec))
     {
-        gl_logger->info("HTTPSession id: {}, response sent: {}",
+        gl_logger->trace("HTTPSession id: {}, response sent: {}",
                         this->get_session_id(), response_);
     }
 
@@ -179,7 +181,7 @@ awaitable<void> HTTPSession<T>::on_header_timeout(asio::error_code ec)
 template <typename T>
 void HTTPSession<T>::on_request(HttpRequest request)
 {
-    if (stopped_)
+    if (this->is_stopped())
         return;
 
     gl_logger->trace("Request: {}", request.to_string());
@@ -208,10 +210,11 @@ awaitable<void> HTTPSession<T>::on_health_request(HttpRequest request)
                                         "status": "{}",
                                         "version": "{}" 
                                     }})"sv;
-    HttpResponse response;
-    response.status_code = static_cast<int>(HTTPResponseCodes::OK);
-    response.reason = "OK";
-    response.body = fmt::format(response_body_template, APP_NAME, "UP", APP_VERSION);
+    HttpResponse response{
+        .status_code = static_cast<int>(HTTPResponseCodes::OK),
+        .reason = "OK",
+        .body = fmt::format(response_body_template, APP_NAME, "UP", APP_VERSION)};
+
     response.headers["Content-Type"] = "application/json";
     response.headers["Content-Length"] = std::to_string(response.body.size());
     response.headers["Connection"] = "close";
@@ -226,7 +229,7 @@ awaitable<void> HTTPSession<T>::on_health_request(HttpRequest request)
 
     if (check_ec(ec))
     {
-        gl_logger->info("HTTPSession id: {}, response sent: {}",
+        gl_logger->trace("HTTPSession id: {}, response sent: {}",
                         this->get_session_id(), response_);
     }
 }
@@ -244,7 +247,7 @@ awaitable<void> HTTPSession<T>::on_outgoing_session_completed(asio::error_code e
     auto buff = asio::buffer(response_);
     auto [ec, _] = co_await asio::async_write(http_stream_, buff,
                                               asio::as_tuple(use_awaitable));
-    check_ec(ec, __func__);
+    check_ec(ec);
 
     shutdown();
 };
@@ -252,6 +255,8 @@ awaitable<void> HTTPSession<T>::on_outgoing_session_completed(asio::error_code e
 template <typename T>
 void HTTPSession<T>::shutdown()
 {
+    using namespace session::helper;
+
     auto& socket = lowest_socket<T>(http_stream_);
 
     asio::error_code ec_formal;
@@ -301,7 +306,7 @@ awaitable<void> HTTPSession<T>::OutgoingSession::connect(const tcp::resolver::re
     auto [ec, _] =
         co_await asio::async_connect(stream_.next_layer(), endpoints, asio::as_tuple(use_awaitable));
 
-    if (check_ec(ec, __func__))
+    if (check_ec(ec))
     {
         co_await on_connect();
     }
@@ -328,7 +333,7 @@ awaitable<void> HTTPSession<T>::OutgoingSession::send_request()
     auto [ec, _] =
         co_await asio::async_write(stream_, asio::buffer(http_request_), asio::as_tuple(use_awaitable));
 
-    if (check_ec(ec, __func__))
+    if (check_ec(ec))
     {
         co_await read_response();
     }
@@ -339,19 +344,22 @@ awaitable<void> HTTPSession<T>::OutgoingSession::read_response()
 {
     auto self = this->shared_from_this();
 
-    auto [ec, n] =
-        co_await stream_.async_read_some(asio::buffer(buffer_), asio::as_tuple(use_awaitable));
-
-    if (is_eof(ec))
+    for (;;)
     {
-        std::string resp(response_.str());
+        auto [ec, n] = co_await stream_.async_read_some(
+            asio::buffer(buffer_),
+            asio::as_tuple(use_awaitable));
+        if (is_eof(ec))
+        {
+            std::string resp(response_.str());
+            co_await outer_session_->on_outgoing_session_completed(ec, std::move(resp));
+            co_return;
+        }
 
-        co_await outer_session_->on_outgoing_session_completed(ec, std::move(resp));
-    }
-    else if (check_ec(ec, __func__))
-    {
+        if (!check_ec(ec))
+            co_return;
+
         response_.write(buffer_.data(), static_cast<std::streamsize>(n));
-        co_await read_response();
     }
 }
 

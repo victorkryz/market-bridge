@@ -8,7 +8,13 @@ namespace session::helper
 {
     using asio::ip::tcp;
 
-    template <typename Stream>
+    template <typename T>
+    concept HttpStream =
+        std::same_as<std::remove_cvref_t<T>, tcp::socket> ||
+        std::same_as<std::remove_cvref_t<T>,
+                     asio::ssl::stream<tcp::socket>>;
+
+    template <HttpStream Stream>
     inline auto& lowest_socket(Stream& stream)
     {
         if constexpr (std::is_same_v<Stream, tcp::socket>)
@@ -17,8 +23,8 @@ namespace session::helper
             return stream.lowest_layer();
     }
 
-    template <typename T>
-    inline void shutdown_socket(T& socket)
+    template <HttpStream Stream>
+    inline void shutdown_socket(Stream& socket)
     {
         asio::error_code ec_formal;
         socket.cancel(ec_formal);
@@ -29,27 +35,27 @@ namespace session::helper
     template <typename S>
     class SessionBase
     {
-        protected:
-            explicit SessionBase(uint64_t id) : id_(id) {}
+    protected:
+        explicit SessionBase(uint64_t id) : id_(id) {}
 
-            bool is_stopped() const noexcept
-            {
-                return stopped_.load(std::memory_order_acquire); 
-            }
+        bool is_stopped() const noexcept
+        {
+            return stopped_.load(std::memory_order_acquire);
+        }
 
-            bool request_stop() noexcept
-            {
-                return !stopped_.exchange(true, std::memory_order_acq_rel);
-            }
+        bool request_stop() noexcept
+        {
+            return !stopped_.exchange(true, std::memory_order_acq_rel);
+        }
 
-            uint64_t get_session_id() const noexcept
-            {
-                return id_;
-            }
+        uint64_t get_session_id() const noexcept
+        {
+            return id_;
+        }
 
-        protected:
-            uint64_t id_{0};
-            std::atomic<bool> stopped_ {false};
+    protected:
+        uint64_t id_{0};
+        std::atomic<bool> stopped_{false};
     };
 
 }; // namespace session::helper

@@ -1,3 +1,5 @@
+#include <algorithm>
+
 #include <asio.hpp>
 #include <asio/ssl.hpp>
 #include <openssl/ssl.h>
@@ -32,13 +34,18 @@ int Server::run()
     init_acceptors();
     install_listeners();
 
-    std::vector<std::thread> threads;
+    {
+        const auto num_threads = std::clamp<size_t>(cfg_.worker_threads, 1, std::thread::hardware_concurrency());
 
-    for (size_t i = 0; i < 3; i++)
-        threads.emplace_back([this]()
-                             { io_.run(); });
-    for (auto& th : threads)
-        th.join();
+        gl_logger->info("Server running with {} threads", num_threads);
+
+        std::vector<std::jthread> threads;
+        threads.reserve(num_threads);
+
+        for (size_t i = 0; i < num_threads; i++)
+            threads.emplace_back([this]()
+                                { io_.run(); });
+    }
 
     gl_logger->info("Server finished");
 
@@ -67,10 +74,10 @@ awaitable<void> Server::listener(asio::ip::tcp::acceptor& acceptor,
 
         // Explicit for aborted state (e.g. acceptor closed)
 
-        if (is_aborted(ec) )
+        if (is_aborted(ec))
             co_return;
 
-        if ( !check_ec(ec))
+        if (!check_ec(ec))
             break;
 
         gl_logger->info("Server accepted connection");
@@ -83,7 +90,7 @@ awaitable<void> Server::listener(asio::ip::tcp::acceptor& acceptor,
     }
 
     gl_logger->info("Server stopped accepting new connections");
-    
+
     uninstall_signals_handler();
     uninstall_listeners();
 }
@@ -101,7 +108,6 @@ asio::awaitable<void> Server::dispatch_http_request(asio::ip::tcp::socket socket
     static constexpr std::array<uint8_t, 2> tls_handshake_sign = {0x16, 0x03};
 
     std::array<uint8_t, tls_handshake_sign.size()> buff;
-
     auto [ec, n] = co_await socket.async_receive(asio::buffer(buff),
                                                  asio::socket_base::message_peek,
                                                  asio::as_tuple(asio::use_awaitable));
@@ -111,9 +117,11 @@ asio::awaitable<void> Server::dispatch_http_request(asio::ip::tcp::socket socket
         co_return;
     }
 
-    if ((n >= buff.size()) &&
-        (buff[0] == tls_handshake_sign[0] &&
-         buff[1] == tls_handshake_sign[1]))
+    const bool is_tls =
+        n >= tls_handshake_sign.size() &&
+        std::ranges::equal(buff, tls_handshake_sign);
+
+    if (is_tls)
     {
         ssl_handshake(std::move(socket));
     }
@@ -136,8 +144,8 @@ void Server::ssl_handshake(asio::ip::tcp::socket&& socket)
                                                       {
                                                           on_ssl_handshake_done(std::move(s));
                                                       });
-    register_session(session);
-    session->start();
+    if (register_session(session))
+        session->start();
 }
 
 void Server::on_ssl_handshake_done(asio::ssl::stream<tcp::socket>&& stream)
@@ -145,14 +153,14 @@ void Server::on_ssl_handshake_done(asio::ssl::stream<tcp::socket>&& stream)
     launch_http_session(std::move(stream));
 }
 
-template <typename T>
+template <session::helper::HttpStream T>
 inline void Server::launch_http_session(T&& channel)
 {
     std::shared_ptr<HTTPSession<T>> session = std::make_shared<HTTPSession<T>>(cfg_, io_,
                                                                                std::move(channel),
                                                                                generate_session_id());
-    register_session(session);
-    session->start();
+    if (register_session(session))
+        session->start();
 }
 
 void Server::init_acceptors()
@@ -194,7 +202,7 @@ void Server::install_signals_handler()
     signals_.async_wait(
         [this](const asio::error_code& ec, int signo)
         {
-            if (check_ec(ec, __func__))
+            if (check_ec(ec))
             {
                 schedule_shutdown();
             }
@@ -222,30 +230,48 @@ void Server::init_ssl_context()
     SSL_CTX_set_info_callback(ssl_context_.native_handle(), ssl_info_callback);
 }
 
-void Server::register_session(std::shared_ptr<Session> session)
+bool Server::register_session(std::shared_ptr<Session> session)
 {
     std::lock_guard<std::mutex> lg(session_mtx_);
-    sessions_.push_back(session);
+
+    bool shutdown = shutdown_pending_.load(std::memory_order_acquire);
+    if (!shutdown)
+        sessions_.push_back(session);
+    else
+        gl_logger->trace("Server is shutting down, cannot register new session");
+
+    return !shutdown;
 }
 
 void Server::stop_sessions()
 {
-    for (auto it = sessions_.begin(); it != sessions_.end();)
+    std::vector<std::shared_ptr<Session>> active_sessions;
+
     {
-        if (auto session = it->lock())
+        std::lock_guard<std::mutex> lg(session_mtx_);
+
+        for (auto it = sessions_.begin(); it != sessions_.end();)
         {
-            session->stop();
-            ++it;
-        }
-        else
-        {
-            it = sessions_.erase(it);
+            if (auto session = it->lock())
+            {
+                active_sessions.push_back(session);
+                ++it;
+            }
+            else
+            {
+                it = sessions_.erase(it);
+            }
         }
     }
+
+    for (auto session : active_sessions)
+        session->stop();
 }
 
 void Server::close_acceptors()
 {
+    std::lock_guard<std::mutex> lg(acceptor_mtx_);
+
     for (auto& acceptor : {std::move(http_acceptor_), std::move(https_acceptor_)})
     {
         if (acceptor)
@@ -263,7 +289,7 @@ void ssl_info_callback(const SSL* ssl, int where, int ret)
     }
     else if (where & SSL_CB_HANDSHAKE_START)
     {
-        gl_logger->trace("TLS] Handshake started");
+        gl_logger->trace("[TLS] Handshake started");
     }
     else if (where & SSL_CB_HANDSHAKE_DONE)
     {

@@ -103,7 +103,13 @@ protected:
     awaitable<void> start_impl();
     Context get_context()
     {
-        return {io_, strand_, tls_context_, request_, SessionBase<TSession>::id_, upstream_info_};
+        return Context{
+            .io = io_,
+            .strand = strand_,
+            .tls_context = tls_context_,
+            .request = request_,
+            .session_id = SessionBase<TSession>::id_,
+            .upstream_info = upstream_info_};
     }
     void on_request(HttpRequest request);
     awaitable<void> on_health_request(HttpRequest request);
@@ -126,7 +132,6 @@ private:
     std::size_t content_length_ = 0;
     asio::ssl::context tls_context_;
     std::string response_;
-    bool stopped_ = false;
     std::once_flag socket_shutdown_flag_;
     UpstreamInfo upstream_info_;
 };

@@ -13,6 +13,7 @@
 
 #include "common/config.h"
 #include "common/session.h"
+#include "utils/session-helper.h"
 
 using asio::awaitable;
 using asio::use_awaitable;
@@ -33,10 +34,10 @@ public:
     void schedule_shutdown();
 
 private:
-    awaitable<void> listener(asio::ip::tcp::acceptor& acceptor, 
+    awaitable<void> listener(asio::ip::tcp::acceptor& acceptor,
                              std::function<void(asio::ip::tcp::socket)> completion_handler);
     asio::awaitable<void> dispatch_http_request(asio::ip::tcp::socket socket);
-    template <typename T>
+    template <session::helper::HttpStream T>
     void launch_http_session(T&& stream);
     void init_acceptors();
     void init_ssl_context();
@@ -48,7 +49,7 @@ private:
     void on_ssl_handshake_done(asio::ssl::stream<asio::ip::tcp::socket>&& stream);
     void stop_sessions();
     void close_acceptors();
-    void register_session(std::shared_ptr<Session> session);
+    bool register_session(std::shared_ptr<Session> session);
 
 private:
     ServerRunningMode running_mode_;
@@ -60,6 +61,6 @@ private:
     asio::signal_set signals_;
     std::atomic<bool> shutdown_pending_ = false;
     std::vector<std::weak_ptr<Session>> sessions_;
-    std::mutex session_mtx_;
+    std::mutex session_mtx_, acceptor_mtx_;
     const Config& cfg_;
 };

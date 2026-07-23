@@ -78,7 +78,7 @@ namespace
     {
         for (const auto& [key, _] : object.items())
         {
-            if (std::find(allowed.begin(), allowed.end(), key) == allowed.end())
+            if (std::ranges::find(allowed, key) == allowed.end())
                 throw std::runtime_error("unknown configuration property: " +
                                          std::string(name) + "." + key);
         }
