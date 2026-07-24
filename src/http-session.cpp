@@ -165,8 +165,8 @@ void HTTPSession<T>::on_header_timeout(const asio::error_code& ec)
                           {
                               if (check_ec(ec, __func__))
                               {
-                                  gl_logger->info("HTTPSession id: {}, response sent: {}",
-                                                  this->get_session_id(), response);
+                                  gl_logger->trace("HTTPSession id: {}, response sent: {}",
+                                                   this->get_session_id(), response);
                               }
 
                               gl_logger->info("HTTPSession id: {}, header read timeout, shutting down...", this->get_session_id());
@@ -225,8 +225,8 @@ void HTTPSession<T>::on_health_request(HttpRequest request)
                           {
                               if (check_ec(ec, __func__))
                               {
-                                  gl_logger->info("HTTPSession id: {}, response sent: {}",
-                                                  this->get_session_id(), response_);
+                                  gl_logger->trace("HTTPSession id: {}, response sent: {}",
+                                                   this->get_session_id(), response_);
                               }
                           }));
 }
@@ -274,8 +274,8 @@ void HTTPSession<T>::on_outgoing_session_failed(const asio::error_code& ec)
                           {
                               if (check_ec(ec, __func__))
                               {
-                                  gl_logger->info("HTTPSession id: {}, response sent: {}",
-                                                  this->get_session_id(), response);
+                                  gl_logger->trace("HTTPSession id: {}, response sent: {}",
+                                                   this->get_session_id(), response);
                               }
 
                               gl_logger->info("HTTPSession id: {}, shutting down...",
@@ -345,7 +345,7 @@ void HTTPSession<T>::OutgoingSession::stop()
     auto self = this->shared_from_this();
     asio::dispatch(context_.strand, [this, self]
                    {
-                        if (!stopped_.exchange(true))
+                        if (self->request_stop())
                         {   
                             gl_logger->info("Outgoing session, stop pending, id: {} ...", context_.session_id);
 

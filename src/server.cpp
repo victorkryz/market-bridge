@@ -33,9 +33,14 @@ int Server::run()
     install_signals_handler();
     install_listeners();
 
-    std::vector<std::thread> threads;
+    const auto num_threads = std::clamp<size_t>(cfg_.worker_threads, 1, std::thread::hardware_concurrency());
 
-    for (size_t i = 0; i < 3; i++)
+    gl_logger->info("Server running with {} threads", num_threads);
+
+    std::vector<std::thread> threads;
+    threads.reserve(num_threads);
+
+    for (size_t i = 0; i < num_threads; i++)
         threads.emplace_back([this]()
                              { io_.run(); });
     for (auto& th : threads)
@@ -148,8 +153,8 @@ void Server::ssl_handshake(asio::ip::tcp::socket&& socket)
                                                       {
                                                           on_ssl_handshake_done(std::move(s));
                                                       });
-    register_session(session);
-    session->start();
+    if (register_session(session))
+        session->start();
 }
 
 void Server::on_ssl_handshake_done(asio::ssl::stream<tcp::socket>&& stream)
@@ -163,8 +168,8 @@ inline void Server::launch_http_session(T&& channel)
     std::shared_ptr<HTTPSession<T>> session = std::make_shared<HTTPSession<T>>(cfg_, io_,
                                                                                std::move(channel),
                                                                                generate_session_id());
-    register_session(session);
-    session->start();
+    if (register_session(session))
+        session->start();
 }
 
 void Server::install_signals_handler()
@@ -230,10 +235,17 @@ void Server::init_ssl_context()
     SSL_CTX_set_info_callback(ssl_context_.native_handle(), ssl_info_callback);
 }
 
-void Server::register_session(std::shared_ptr<Session> session)
+bool Server::register_session(std::shared_ptr<Session> session)
 {
     std::lock_guard<std::mutex> lg(session_mtx_);
-    sessions_.push_back(session);
+
+    bool shutdown = shutdown_pending_.load(std::memory_order_acquire);
+    if (!shutdown)
+        sessions_.push_back(session);
+    else
+        gl_logger->trace("Server is shutting down, cannot register new session");
+
+    return !shutdown;
 }
 
 void Server::stop_sessions()
