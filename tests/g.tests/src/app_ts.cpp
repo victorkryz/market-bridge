@@ -148,15 +148,18 @@ TEST_F(CommandLineTS, EmptyLineTest)
 
     EXPECT_EQ(exit_code, 0);
 
-    EXPECT_EQ(out_args_.http_port, default_http_port);
-    EXPECT_EQ(out_args_.https_port, default_https_port);
-    EXPECT_EQ(out_args_.log_level, spdlog::level::level_enum::info);
-    EXPECT_EQ(out_args_.running_mode, ServerRunningMode::Persistent);
-    EXPECT_EQ(out_args_.logger_type, default_log_type);
-    EXPECT_EQ(out_args_.srv_cert_path, default_srv_cert_path);
-    EXPECT_EQ(out_args_.srv_private_key_path, default_srv_private_key_path);
-    EXPECT_FALSE(out_args_.ignore_certificate_verification);
-    EXPECT_FALSE(out_args_.allow_https_over_http_port);
+    EXPECT_EQ(out_args_.server.http_port, default_http_port);
+    EXPECT_EQ(out_args_.server.https_port, default_https_port);
+    EXPECT_EQ(out_args_.logging.level, spdlog::level::level_enum::info);
+    EXPECT_EQ(out_args_.server.run_mode, ServerRunningMode::Persistent);
+    EXPECT_EQ(out_args_.logging.output, default_log_type);
+    EXPECT_EQ(out_args_.tls.certificate, default_srv_cert_path);
+    EXPECT_EQ(out_args_.tls.private_key, default_srv_private_key_path);
+    EXPECT_EQ(out_args_.upstream.host, "api.binance.com");
+    EXPECT_EQ(out_args_.upstream.port, 443u);
+    EXPECT_FALSE(out_args_.upstream.ignore_certificate_verification);
+    EXPECT_FALSE(out_args_.server.allow_https_over_http_port);
+    EXPECT_EQ(out_args_.server.worker_threads, 3u);
 
     EXPECT_FALSE(usage_requested);
     EXPECT_FALSE(gl_show_usage_called);
@@ -187,18 +190,18 @@ TEST_F(CommandLineTS, HttpPortArgTest)
     EXPECT_EQ(exit_code, 0);
 
     
-    EXPECT_EQ(out_args_.http_port, in_port);
-    EXPECT_EQ(out_args_.https_port, default_https_port);
-    EXPECT_EQ(out_args_.log_level, spdlog::level::level_enum::info);
-    EXPECT_EQ(out_args_.running_mode, ServerRunningMode::Persistent);
-    EXPECT_EQ(out_args_.logger_type, default_log_type);
-    EXPECT_EQ(out_args_.srv_cert_path, default_srv_cert_path);
-    EXPECT_EQ(out_args_.srv_private_key_path, default_srv_private_key_path);
-    EXPECT_FALSE(out_args_.ignore_certificate_verification);
-    EXPECT_FALSE(out_args_.allow_https_over_http_port);
+    EXPECT_EQ(out_args_.server.http_port, in_port);
+    EXPECT_EQ(out_args_.server.https_port, default_https_port);
+    EXPECT_EQ(out_args_.logging.level, spdlog::level::level_enum::info);
+    EXPECT_EQ(out_args_.server.run_mode, ServerRunningMode::Persistent);
+    EXPECT_EQ(out_args_.logging.output, default_log_type);
+    EXPECT_EQ(out_args_.tls.certificate, default_srv_cert_path);
+    EXPECT_EQ(out_args_.tls.private_key, default_srv_private_key_path);
+    EXPECT_FALSE(out_args_.upstream.ignore_certificate_verification);
+    EXPECT_FALSE(out_args_.server.allow_https_over_http_port);
 
-    EXPECT_EQ(out_args_.upstream_host, default_args_.upstream_host);
-    EXPECT_EQ(out_args_.upstream_port, default_args_.upstream_port);
+    EXPECT_EQ(out_args_.upstream.host, default_args_.upstream.host);
+    EXPECT_EQ(out_args_.upstream.port, default_args_.upstream.port);
 
     EXPECT_FALSE(usage_requested);
     EXPECT_FALSE(gl_show_usage_called);
@@ -216,18 +219,18 @@ TEST_F(CommandLineTS, HttpsPortArgTest)
 
     EXPECT_EQ(exit_code, 0);
 
-    EXPECT_EQ(out_args_.https_port, in_port);
-    EXPECT_EQ(out_args_.http_port, default_http_port);
-    EXPECT_EQ(out_args_.log_level, spdlog::level::level_enum::info);
-    EXPECT_EQ(out_args_.running_mode, ServerRunningMode::Persistent);
-    EXPECT_EQ(out_args_.logger_type, default_log_type);
-    EXPECT_EQ(out_args_.srv_cert_path, default_srv_cert_path);
-    EXPECT_EQ(out_args_.srv_private_key_path, default_srv_private_key_path);
-    EXPECT_FALSE(out_args_.ignore_certificate_verification);
-    EXPECT_FALSE(out_args_.allow_https_over_http_port);
+    EXPECT_EQ(out_args_.server.https_port, in_port);
+    EXPECT_EQ(out_args_.server.http_port, default_http_port);
+    EXPECT_EQ(out_args_.logging.level, spdlog::level::level_enum::info);
+    EXPECT_EQ(out_args_.server.run_mode, ServerRunningMode::Persistent);
+    EXPECT_EQ(out_args_.logging.output, default_log_type);
+    EXPECT_EQ(out_args_.tls.certificate, default_srv_cert_path);
+    EXPECT_EQ(out_args_.tls.private_key, default_srv_private_key_path);
+    EXPECT_FALSE(out_args_.upstream.ignore_certificate_verification);
+    EXPECT_FALSE(out_args_.server.allow_https_over_http_port);
 
-    EXPECT_EQ(out_args_.upstream_host, default_args_.upstream_host);
-    EXPECT_EQ(out_args_.upstream_port, default_args_.upstream_port);
+    EXPECT_EQ(out_args_.upstream.host, default_args_.upstream.host);
+    EXPECT_EQ(out_args_.upstream.port, default_args_.upstream.port);
 
     EXPECT_FALSE(usage_requested);
     EXPECT_FALSE(gl_show_usage_called);
@@ -245,19 +248,19 @@ TEST_F(CommandLineTS, CertPathArgTest)
 
     EXPECT_EQ(exit_code, 0);
 
-    EXPECT_EQ(out_args_.srv_cert_path, s_cert);
-    EXPECT_EQ(out_args_.srv_private_key_path, s_private_key);
+    EXPECT_EQ(out_args_.tls.certificate, s_cert);
+    EXPECT_EQ(out_args_.tls.private_key, s_private_key);
 
-    EXPECT_EQ(out_args_.http_port, default_http_port);
-    EXPECT_EQ(out_args_.https_port, default_https_port);
-    EXPECT_EQ(out_args_.log_level, spdlog::level::level_enum::info);
-    EXPECT_EQ(out_args_.running_mode, ServerRunningMode::Persistent);
-    EXPECT_EQ(out_args_.logger_type, default_log_type);
-    EXPECT_FALSE(out_args_.ignore_certificate_verification);
-    EXPECT_FALSE(out_args_.allow_https_over_http_port);
+    EXPECT_EQ(out_args_.server.http_port, default_http_port);
+    EXPECT_EQ(out_args_.server.https_port, default_https_port);
+    EXPECT_EQ(out_args_.logging.level, spdlog::level::level_enum::info);
+    EXPECT_EQ(out_args_.server.run_mode, ServerRunningMode::Persistent);
+    EXPECT_EQ(out_args_.logging.output, default_log_type);
+    EXPECT_FALSE(out_args_.upstream.ignore_certificate_verification);
+    EXPECT_FALSE(out_args_.server.allow_https_over_http_port);
 
-    EXPECT_EQ(out_args_.upstream_host, default_args_.upstream_host);
-    EXPECT_EQ(out_args_.upstream_port, default_args_.upstream_port);
+    EXPECT_EQ(out_args_.upstream.host, default_args_.upstream.host);
+    EXPECT_EQ(out_args_.upstream.port, default_args_.upstream.port);
 
     EXPECT_FALSE(usage_requested);
     EXPECT_FALSE(gl_show_usage_called);
@@ -271,9 +274,9 @@ TEST_F(CommandLineTS, IgnoreCertificateVerificationArgTest)
         process_arguments(in_args_.size(), in_args_.data(), out_args_);
 
     EXPECT_EQ(exit_code, 0);
-    EXPECT_FALSE(out_args_.allow_https_over_http_port);
+    EXPECT_FALSE(out_args_.server.allow_https_over_http_port);
 
-    EXPECT_TRUE(out_args_.ignore_certificate_verification);
+    EXPECT_TRUE(out_args_.upstream.ignore_certificate_verification);
 
     EXPECT_FALSE(usage_requested);
     EXPECT_FALSE(gl_show_usage_called);
@@ -289,7 +292,7 @@ TEST_F(CommandLineTS, AllowHttpsOverHttpPortArgTest)
 
     EXPECT_EQ(exit_code, 0);
 
-    EXPECT_TRUE(out_args_.allow_https_over_http_port);
+    EXPECT_TRUE(out_args_.server.allow_https_over_http_port);
 
     EXPECT_FALSE(usage_requested);
     EXPECT_FALSE(gl_show_usage_called);
@@ -306,17 +309,17 @@ TEST_F(CommandLineTS, UpstreamHostArgTest)
 
     EXPECT_EQ(exit_code, 0);
 
-    EXPECT_EQ(out_args_.upstream_host, in_host);
-    EXPECT_EQ(out_args_.http_port, default_http_port);
-    EXPECT_EQ(out_args_.log_level, spdlog::level::level_enum::info);
-    EXPECT_EQ(out_args_.running_mode, ServerRunningMode::Persistent);
-    EXPECT_EQ(out_args_.logger_type, default_log_type);
-    EXPECT_EQ(out_args_.srv_cert_path, default_srv_cert_path);
-    EXPECT_EQ(out_args_.srv_private_key_path, default_srv_private_key_path);
-    EXPECT_FALSE(out_args_.ignore_certificate_verification);
-    EXPECT_FALSE(out_args_.allow_https_over_http_port);
+    EXPECT_EQ(out_args_.upstream.host, in_host);
+    EXPECT_EQ(out_args_.server.http_port, default_http_port);
+    EXPECT_EQ(out_args_.logging.level, spdlog::level::level_enum::info);
+    EXPECT_EQ(out_args_.server.run_mode, ServerRunningMode::Persistent);
+    EXPECT_EQ(out_args_.logging.output, default_log_type);
+    EXPECT_EQ(out_args_.tls.certificate, default_srv_cert_path);
+    EXPECT_EQ(out_args_.tls.private_key, default_srv_private_key_path);
+    EXPECT_FALSE(out_args_.upstream.ignore_certificate_verification);
+    EXPECT_FALSE(out_args_.server.allow_https_over_http_port);
 
-    EXPECT_EQ(out_args_.upstream_port, default_args_.upstream_port);
+    EXPECT_EQ(out_args_.upstream.port, default_args_.upstream.port);
 
     EXPECT_FALSE(usage_requested);
     EXPECT_FALSE(gl_show_usage_called);
@@ -335,17 +338,17 @@ TEST_F(CommandLineTS, UpstreamPortArgTest)
 
     EXPECT_EQ(exit_code, 0);
 
-    EXPECT_EQ(out_args_.upstream_port, in_port);
-    EXPECT_EQ(out_args_.http_port, default_http_port);
-    EXPECT_EQ(out_args_.log_level, spdlog::level::level_enum::info);
-    EXPECT_EQ(out_args_.running_mode, ServerRunningMode::Persistent);
-    EXPECT_EQ(out_args_.logger_type, default_log_type);
-    EXPECT_EQ(out_args_.srv_cert_path, default_srv_cert_path);
-    EXPECT_EQ(out_args_.srv_private_key_path, default_srv_private_key_path);
-    EXPECT_FALSE(out_args_.ignore_certificate_verification);
-    EXPECT_FALSE(out_args_.allow_https_over_http_port);
+    EXPECT_EQ(out_args_.upstream.port, in_port);
+    EXPECT_EQ(out_args_.server.http_port, default_http_port);
+    EXPECT_EQ(out_args_.logging.level, spdlog::level::level_enum::info);
+    EXPECT_EQ(out_args_.server.run_mode, ServerRunningMode::Persistent);
+    EXPECT_EQ(out_args_.logging.output, default_log_type);
+    EXPECT_EQ(out_args_.tls.certificate, default_srv_cert_path);
+    EXPECT_EQ(out_args_.tls.private_key, default_srv_private_key_path);
+    EXPECT_FALSE(out_args_.upstream.ignore_certificate_verification);
+    EXPECT_FALSE(out_args_.server.allow_https_over_http_port);
 
-    EXPECT_EQ(out_args_.upstream_host, default_args_.upstream_host);
+    EXPECT_EQ(out_args_.upstream.host, default_args_.upstream.host);
 
     EXPECT_FALSE(usage_requested);
     EXPECT_FALSE(gl_show_usage_called);
@@ -372,11 +375,11 @@ TEST_P(LogLevel_TS, LogLevelArg)
         process_arguments(in_args_.size(), in_args_.data(), out_args_);
 
     EXPECT_EQ(exit_code, 0);
-    EXPECT_EQ(out_args_.http_port, default_http_port);
-    EXPECT_EQ(out_args_.running_mode, ServerRunningMode::Persistent);
-    EXPECT_EQ(out_args_.logger_type, default_log_type);
+    EXPECT_EQ(out_args_.server.http_port, default_http_port);
+    EXPECT_EQ(out_args_.server.run_mode, ServerRunningMode::Persistent);
+    EXPECT_EQ(out_args_.logging.output, default_log_type);
 
-    EXPECT_EQ(out_args_.log_level, spd_log_level);
+    EXPECT_EQ(out_args_.logging.level, spd_log_level);
 
     EXPECT_FALSE(usage_requested);
     EXPECT_FALSE(gl_show_usage_called);
@@ -398,11 +401,11 @@ TEST_P(LogType_TS, LoggerType)
         process_arguments(in_args_.size(), in_args_.data(), out_args_);
 
     EXPECT_EQ(exit_code, 0);
-    EXPECT_EQ(out_args_.http_port, default_http_port);
-    EXPECT_EQ(out_args_.running_mode, ServerRunningMode::Persistent);
-    EXPECT_EQ(out_args_.log_level, spdlog::level::level_enum::info);
+    EXPECT_EQ(out_args_.server.http_port, default_http_port);
+    EXPECT_EQ(out_args_.server.run_mode, ServerRunningMode::Persistent);
+    EXPECT_EQ(out_args_.logging.level, spdlog::level::level_enum::info);
 
-    EXPECT_EQ(out_args_.logger_type, logger_type);
+    EXPECT_EQ(out_args_.logging.output, logger_type);
 
     EXPECT_FALSE(usage_requested);
     EXPECT_FALSE(gl_show_usage_called);
@@ -423,11 +426,11 @@ TEST_P(RunMode_TS, RunMode)
         process_arguments(in_args_.size(), in_args_.data(), out_args_);
 
     EXPECT_EQ(exit_code, 0);
-    EXPECT_EQ(out_args_.http_port, default_http_port);
-    EXPECT_EQ(out_args_.log_level, spdlog::level::level_enum::info);
-    EXPECT_EQ(out_args_.logger_type, default_log_type);
+    EXPECT_EQ(out_args_.server.http_port, default_http_port);
+    EXPECT_EQ(out_args_.logging.level, spdlog::level::level_enum::info);
+    EXPECT_EQ(out_args_.logging.output, default_log_type);
 
-    EXPECT_EQ(out_args_.running_mode, run_mode);
+    EXPECT_EQ(out_args_.server.run_mode, run_mode);
 
     EXPECT_FALSE(usage_requested);
     EXPECT_FALSE(gl_show_usage_called);
@@ -447,18 +450,18 @@ TEST_F(CommandLineTS, DefaultJsonConfigTest)
     EXPECT_EQ(exit_code, 0);
 
     EXPECT_EQ(out_args_.config_path, str_config);
-    EXPECT_EQ(out_args_.http_port, default_http_port);
-    EXPECT_EQ(out_args_.https_port, default_https_port);
-    EXPECT_EQ(out_args_.log_level, spdlog::level::level_enum::info);
-    EXPECT_EQ(out_args_.running_mode, ServerRunningMode::Persistent);
-    EXPECT_EQ(out_args_.logger_type, default_log_type);
-    EXPECT_EQ(out_args_.srv_cert_path, default_srv_cert_path);
-    EXPECT_EQ(out_args_.srv_private_key_path, default_srv_private_key_path);
-    EXPECT_FALSE(out_args_.ignore_certificate_verification);
-    EXPECT_FALSE(out_args_.allow_https_over_http_port);
+    EXPECT_EQ(out_args_.server.http_port, default_http_port);
+    EXPECT_EQ(out_args_.server.https_port, default_https_port);
+    EXPECT_EQ(out_args_.logging.level, spdlog::level::level_enum::info);
+    EXPECT_EQ(out_args_.server.run_mode, ServerRunningMode::Persistent);
+    EXPECT_EQ(out_args_.logging.output, default_log_type);
+    EXPECT_EQ(out_args_.tls.certificate, default_srv_cert_path);
+    EXPECT_EQ(out_args_.tls.private_key, default_srv_private_key_path);
+    EXPECT_FALSE(out_args_.upstream.ignore_certificate_verification);
+    EXPECT_FALSE(out_args_.server.allow_https_over_http_port);
 
-    EXPECT_EQ(out_args_.upstream_host, default_args_.upstream_host);
-    EXPECT_EQ(out_args_.upstream_port, default_args_.upstream_port);
+    EXPECT_EQ(out_args_.upstream.host, default_args_.upstream.host);
+    EXPECT_EQ(out_args_.upstream.port, default_args_.upstream.port);
 
     EXPECT_FALSE(usage_requested);
     EXPECT_FALSE(gl_show_usage_called);
@@ -490,19 +493,19 @@ TEST_F(CommandLineTS, CustomJsonConfigTest)
     EXPECT_EQ(exit_code, 0);
 
     EXPECT_EQ(out_args_.config_path, str_config);
-    EXPECT_EQ(out_args_.http_port, 9080u);
-    EXPECT_EQ(out_args_.https_port, 9443u);
-    EXPECT_EQ(out_args_.log_level, spdlog::level::level_enum::trace);
-    EXPECT_EQ(out_args_.running_mode, ServerRunningMode::Persistent);
-    EXPECT_EQ(out_args_.logger_type, default_log_type);
-    EXPECT_EQ(out_args_.srv_cert_path, default_srv_cert_path);
-    EXPECT_EQ(out_args_.srv_private_key_path, default_srv_private_key_path);
+    EXPECT_EQ(out_args_.server.http_port, 9080u);
+    EXPECT_EQ(out_args_.server.https_port, 9443u);
+    EXPECT_EQ(out_args_.logging.level, spdlog::level::level_enum::trace);
+    EXPECT_EQ(out_args_.server.run_mode, ServerRunningMode::Persistent);
+    EXPECT_EQ(out_args_.logging.output, default_log_type);
+    EXPECT_EQ(out_args_.tls.certificate, default_srv_cert_path);
+    EXPECT_EQ(out_args_.tls.private_key, default_srv_private_key_path);
 
-    EXPECT_FALSE(out_args_.ignore_certificate_verification);
-    EXPECT_TRUE(out_args_.allow_https_over_http_port);
+    EXPECT_FALSE(out_args_.upstream.ignore_certificate_verification);
+    EXPECT_TRUE(out_args_.server.allow_https_over_http_port);
 
-    EXPECT_EQ(out_args_.upstream_host, default_args_.upstream_host);
-    EXPECT_EQ(out_args_.upstream_port, default_args_.upstream_port);
+    EXPECT_EQ(out_args_.upstream.host, default_args_.upstream.host);
+    EXPECT_EQ(out_args_.upstream.port, default_args_.upstream.port);
 
     EXPECT_FALSE(usage_requested);
     EXPECT_FALSE(gl_show_usage_called);
@@ -534,19 +537,19 @@ TEST_F(CommandLineTS, CustomJsonConfigTest2)
     EXPECT_EQ(exit_code, 0);
 
     EXPECT_EQ(out_args_.config_path, str_config);
-    EXPECT_EQ(out_args_.http_port, default_http_port);
-    EXPECT_EQ(out_args_.https_port, default_https_port);
-    EXPECT_EQ(out_args_.log_level, spdlog::level::level_enum::off);
-    EXPECT_EQ(out_args_.running_mode, ServerRunningMode::Persistent);
-    EXPECT_EQ(out_args_.logger_type, LoggerType::File);
-    EXPECT_EQ(out_args_.srv_cert_path, default_srv_cert_path);
-    EXPECT_EQ(out_args_.srv_private_key_path, default_srv_private_key_path);
+    EXPECT_EQ(out_args_.server.http_port, default_http_port);
+    EXPECT_EQ(out_args_.server.https_port, default_https_port);
+    EXPECT_EQ(out_args_.logging.level, spdlog::level::level_enum::off);
+    EXPECT_EQ(out_args_.server.run_mode, ServerRunningMode::Persistent);
+    EXPECT_EQ(out_args_.logging.output, LoggerType::File);
+    EXPECT_EQ(out_args_.tls.certificate, default_srv_cert_path);
+    EXPECT_EQ(out_args_.tls.private_key, default_srv_private_key_path);
 
-    EXPECT_TRUE(out_args_.ignore_certificate_verification);
-    EXPECT_FALSE(out_args_.allow_https_over_http_port);
+    EXPECT_TRUE(out_args_.upstream.ignore_certificate_verification);
+    EXPECT_FALSE(out_args_.server.allow_https_over_http_port);
 
-    EXPECT_EQ(out_args_.upstream_host, "api.test.com");
-    EXPECT_EQ(out_args_.upstream_port, 9443u);
+    EXPECT_EQ(out_args_.upstream.host, "api.test.com");
+    EXPECT_EQ(out_args_.upstream.port, 9443u);
 
     EXPECT_FALSE(usage_requested);
     EXPECT_FALSE(gl_show_usage_called);

@@ -18,10 +18,10 @@ HTTPSession<T>::HTTPSession(const Config& cfg,
                                                        strand_(asio::make_strand(http_stream_.get_executor())),
                                                        tls_context_(asio::ssl::context::tls_client),
                                                        upstream_info_{
-                                                           .host = cfg.upstream_host,
-                                                           .port = cfg.upstream_port,
+                                                           .host = cfg.upstream.host,
+                                                           .port = cfg.upstream.port,
                                                            .ignore_certificate_verification =
-                                                               cfg.ignore_certificate_verification}
+                                                            cfg.upstream.ignore_certificate_verification}
 {
     gl_logger->trace("HTTPSession constructed, id: {}", this->get_session_id());
 }

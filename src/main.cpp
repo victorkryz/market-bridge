@@ -35,7 +35,7 @@ int main(int argc, char* argv[])
                 return 0;
         }
 
-        gl_logger = init_logger(cfg.logger_type, cfg.log_level);
+        gl_logger = init_logger(cfg.logging.output, cfg.logging.level);
 
         Server server(cfg);
         server.run();

@@ -181,13 +181,13 @@ namespace
                            allow_https_over_http_port_key},
                           server_key);
             if (it->contains(http_port_key))
-                config.http_port = read_port(it->at(http_port_key), server_http_port_name);
+                config.server.http_port = read_port(it->at(http_port_key), server_http_port_name);
             if (it->contains(https_port_key))
-                config.https_port = read_port(it->at(https_port_key), server_https_port_name);
+                config.server.https_port = read_port(it->at(https_port_key), server_https_port_name);
             if (it->contains(run_mode_key))
-                config.running_mode = read_run_mode(it->at(run_mode_key));
+                config.server.run_mode = read_run_mode(it->at(run_mode_key));
             if (it->contains(allow_https_over_http_port_key))
-                config.allow_https_over_http_port =
+                config.server.allow_https_over_http_port =
                     read_bool(it->at(allow_https_over_http_port_key),
                               server_allow_https_over_http_port_name);
         }
@@ -197,10 +197,10 @@ namespace
             obtain_object(*it, tls_key);
             validate_keys(*it, {certificate_key, private_key_key}, tls_key);
             if (it->contains(certificate_key))
-                config.srv_cert_path =
+                config.tls.certificate =
                     read_string(it->at(certificate_key), tls_certificate_name);
             if (it->contains(private_key_key))
-                config.srv_private_key_path =
+                config.tls.private_key =
                     read_string(it->at(private_key_key), tls_private_key_name);
         }
 
@@ -211,12 +211,12 @@ namespace
                           {host_key, port_key, ignore_certificate_verification_key},
                           upstream_key);
             if (it->contains(host_key))
-                config.upstream_host =
+                config.upstream.host =
                     read_string(it->at(host_key), upstream_host_name, false);
             if (it->contains(port_key))
-                config.upstream_port = read_port(it->at(port_key), upstream_port_name);
+                config.upstream.port = read_port(it->at(port_key), upstream_port_name);
             if (it->contains(ignore_certificate_verification_key))
-                config.ignore_certificate_verification =
+                config.upstream.ignore_certificate_verification =
                     read_bool(it->at(ignore_certificate_verification_key),
                               upstream_ignore_certificate_verification_name);
         }
@@ -226,9 +226,9 @@ namespace
             obtain_object(*it, logging_key);
             validate_keys(*it, {output_key, level_key}, logging_key);
             if (it->contains(output_key))
-                config.logger_type = read_log_output(it->at(output_key));
+                config.logging.output = read_log_output(it->at(output_key));
             if (it->contains(level_key))
-                config.log_level = read_log_level(it->at(level_key));
+                config.logging.level = read_log_level(it->at(level_key));
         }
     }
 
