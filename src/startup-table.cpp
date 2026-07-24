@@ -58,16 +58,16 @@ std::string make_startup_table(const Config& cfg)
 
     const std::vector<Row> rows{
         {"Version", app_version},
-        {"HTTP listener", endpoint("localhost", cfg.http_port)},
-        {"HTTPS listener", endpoint("localhost", cfg.https_port)},
-        {"Upstream", endpoint(cfg.upstream_host, cfg.upstream_port)},
-        {"Run mode", to_string(cfg.running_mode)},
-        {"Log output", to_string(cfg.logger_type)},
-        {"Log level", to_string(cfg.log_level)},
-        {"TLS certificate", cfg.srv_cert_path},
-        {"TLS private key", cfg.srv_private_key_path},
-        {"Ignore upstream cert", to_string(cfg.ignore_certificate_verification)},
-        {"Allow HTTPS over HTTP port", to_string(cfg.allow_https_over_http_port)}
+        {"HTTP listener", endpoint("localhost", cfg.server.http_port)},
+        {"HTTPS listener", endpoint("localhost", cfg.server.https_port)},
+        {"Upstream", endpoint(cfg.upstream.host, cfg.upstream.port)},
+        {"Run mode", to_string(cfg.server.run_mode)},
+        {"Log output", to_string(cfg.logging.output)},
+        {"Log level", to_string(cfg.logging.level)},
+        {"TLS certificate", cfg.tls.certificate},
+        {"TLS private key", cfg.tls.private_key},
+        {"Ignore upstream cert", to_string(cfg.upstream.ignore_certificate_verification)},
+        {"Allow HTTPS over HTTP port", to_string(cfg.server.allow_https_over_http_port)}
     };
 
     constexpr std::size_t title_padding = 2;

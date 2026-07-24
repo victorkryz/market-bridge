@@ -18,7 +18,7 @@ HTTPSession<T>::HTTPSession(const Config& cfg,
                                                        io_(io), http_stream_(std::move(socket)),
                                                        strand_(asio::make_strand(http_stream_.get_executor())),
                                                        tls_context_(asio::ssl::context::tls_client),
-                                                       upstream_info_{cfg.upstream_host, cfg.upstream_port, cfg.ignore_certificate_verification}
+                                                       upstream_info_{cfg.upstream.host, cfg.upstream.port, cfg.upstream.ignore_certificate_verification}
 
 {
 

@@ -27,10 +27,10 @@ inline std::pair<int, bool> process_arguments(int argc, char* argv[],
 
         // clang-format off
         options.add_options()("p, http-port", "specify http port (default: 8080)",
-                              cxxopts::value<decltype(cfg.http_port)>())
+                              cxxopts::value<decltype(cfg.server.http_port)>())
 
                               ("s, https-port", "specify port (default: 8443)",
-                              cxxopts::value<decltype(cfg.https_port)>())
+                              cxxopts::value<decltype(cfg.server.https_port)>())
 
                               ("o, log-output", "specify logging output (file, console)",  
                               cxxopts::value<std::string>())
@@ -54,7 +54,7 @@ inline std::pair<int, bool> process_arguments(int argc, char* argv[],
                               cxxopts::value<std::string>())
 
                               ("P, upstream-port", "specify upstream port for proxying outgoing requests (default: 443)",
-                              cxxopts::value<decltype(cfg.upstream_port)>())
+                              cxxopts::value<decltype(cfg.upstream.port)>())
 
                               ("a, allow-https-over-http-port", "allow HTTPS requests over HTTP port",
                               cxxopts::value<bool>()->implicit_value("true"))
@@ -79,7 +79,7 @@ inline std::pair<int, bool> process_arguments(int argc, char* argv[],
 
             merge_parsed_arguments(parsed_cfg, cfg);
 
-            if (cfg.http_port == cfg.https_port)
+            if (cfg.server.http_port == cfg.server.https_port)
             {
                 std::cout << "http-port and https-port must be different" << std::endl;
                 result.first = 1;
@@ -107,50 +107,50 @@ inline std::pair<int, bool> process_arguments(int argc, char* argv[], Config& cf
 inline void merge_parsed_arguments(const cxxopts::ParseResult& parsed_args, Config& target_cfg)
 {
     if (parsed_args.count("http-port"))
-        target_cfg.http_port = parsed_args["http-port"].as<decltype(target_cfg.http_port)>();
+        target_cfg.server.http_port = parsed_args["http-port"].as<decltype(target_cfg.server.http_port)>();
 
     if (parsed_args.count("https-port"))
-        target_cfg.https_port = parsed_args["https-port"].as<decltype(target_cfg.https_port)>();
+        target_cfg.server.https_port = parsed_args["https-port"].as<decltype(target_cfg.server.https_port)>();
 
     if (parsed_args.count("cert-path"))
-        target_cfg.srv_cert_path = parsed_args["cert-path"].as<std::string>();
+        target_cfg.tls.certificate = parsed_args["cert-path"].as<std::string>();
 
     if (parsed_args.count("private-key"))
-        target_cfg.srv_private_key_path = parsed_args["private-key"].as<std::string>();
+        target_cfg.tls.private_key = parsed_args["private-key"].as<std::string>();
 
     if (parsed_args.count("ignore-cert-verification"))
-        target_cfg.ignore_certificate_verification =
+        target_cfg.upstream.ignore_certificate_verification =
             parsed_args["ignore-cert-verification"].as<bool>();
 
     if (parsed_args.count("upstream-host"))
-        target_cfg.upstream_host = parsed_args["upstream-host"].as<std::string>();
+        target_cfg.upstream.host = parsed_args["upstream-host"].as<std::string>();
 
     if (parsed_args.count("upstream-port"))
-        target_cfg.upstream_port = parsed_args["upstream-port"].as<decltype(target_cfg.upstream_port)>();
+        target_cfg.upstream.port = parsed_args["upstream-port"].as<decltype(target_cfg.upstream.port)>();
 
     if (parsed_args.count("allow-https-over-http-port"))
-        target_cfg.allow_https_over_http_port =
+        target_cfg.server.allow_https_over_http_port =
             parsed_args["allow-https-over-http-port"].as<bool>();
 
     if (parsed_args.count("log-level"))
-        target_cfg.log_level = spdlog::level::from_str(
+        target_cfg.logging.level = spdlog::level::from_str(
             parsed_args["log-level"].as<std::string>());
 
     if (parsed_args.count("log-output"))
     {
         const auto log_type = parsed_args["log-output"].as<std::string>();
         if ((log_type == "con") || (log_type == "console"))
-            target_cfg.logger_type = LoggerType::Console;
+            target_cfg.logging.output = LoggerType::Console;
         else if (log_type == "file")
-            target_cfg.logger_type = LoggerType::File;
+            target_cfg.logging.output = LoggerType::File;
     }
 
     if (parsed_args.count("run-mode"))
     {
         const auto running_mode = parsed_args["run-mode"].as<std::string>();
         if (running_mode == "single-request")
-            target_cfg.running_mode = ServerRunningMode::SingleRequest;
+            target_cfg.server.run_mode = ServerRunningMode::SingleRequest;
         else if (running_mode == "persist")
-            target_cfg.running_mode = ServerRunningMode::Persistent;
+            target_cfg.server.run_mode = ServerRunningMode::Persistent;
     }
 }

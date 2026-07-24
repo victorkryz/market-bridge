@@ -46,9 +46,9 @@ TEST_SUITE("testing the command line processor suite")
 
             CHECK(exit_code == 0);
 
-            CHECK(cfg.http_port == default_http_port);
-            CHECK(cfg.log_level == spdlog::level::level_enum::info);
-            CHECK(cfg.running_mode == ServerRunningMode::Persistent);
+            CHECK(cfg.server.http_port == default_http_port);
+            CHECK(cfg.logging.level == spdlog::level::level_enum::info);
+            CHECK(cfg.server.run_mode == ServerRunningMode::Persistent);
 
             CHECK(!usage_requested);
             CHECK(!gl_show_usage_called);
@@ -77,9 +77,9 @@ TEST_SUITE("testing the command line processor suite")
 
             CHECK(exit_code == 0);
 
-            CHECK(cfg.http_port == in_port);
-            CHECK(cfg.log_level == spdlog::level::level_enum::info);
-            CHECK(cfg.running_mode == ServerRunningMode::Persistent);
+            CHECK(cfg.server.http_port == in_port);
+            CHECK(cfg.logging.level == spdlog::level::level_enum::info);
+            CHECK(cfg.server.run_mode == ServerRunningMode::Persistent);
 
             CHECK(!usage_requested);
             CHECK(!gl_show_usage_called);

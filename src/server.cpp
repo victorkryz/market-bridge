@@ -16,7 +16,7 @@
 void ssl_info_callback(const SSL* ssl, int where, int ret);
 extern std::string make_startup_table(const Config& cfg);
 
-Server::Server(const Config& cfg) : running_mode_(cfg.running_mode),
+Server::Server(const Config& cfg) : running_mode_(cfg.server.run_mode),
                                     signals_(io_, SIGINT, SIGTERM),
                                     ssl_context_(asio::ssl::context::tls_server),
                                     cfg_(cfg)
@@ -33,7 +33,7 @@ int Server::run()
     install_signals_handler();
     install_listeners();
 
-    const auto num_threads = std::clamp<size_t>(cfg_.worker_threads, 1, std::thread::hardware_concurrency());
+    const auto num_threads = std::clamp<size_t>(cfg_.server.worker_threads, 1, std::thread::hardware_concurrency());
 
     gl_logger->info("Server running with {} threads", num_threads);
 
@@ -98,7 +98,7 @@ void Server::dispatch_http_request(asio::ip::tcp::socket socket)
 {
     using std::literals::string_view_literals::operator""sv;
 
-    if (!cfg_.allow_https_over_http_port)
+    if (!cfg_.server.allow_https_over_http_port)
     {
         launch_http_session(std::move(socket));
         return;
@@ -191,10 +191,10 @@ void Server::uninstall_signals_handler()
 
 void Server::init_acceptors()
 {
-    http_acceptor_ = std::make_unique<asio::ip::tcp::acceptor>(io_, asio::ip::tcp::endpoint(tcp::v4(), cfg_.http_port));
-    if (cfg_.https_port != cfg_.http_port)
+    http_acceptor_ = std::make_unique<asio::ip::tcp::acceptor>(io_, asio::ip::tcp::endpoint(tcp::v4(), cfg_.server.http_port));
+    if (cfg_.server.https_port != cfg_.server.http_port)
     {
-        https_acceptor_ = std::make_unique<asio::ip::tcp::acceptor>(io_, asio::ip::tcp::endpoint(tcp::v4(), cfg_.https_port));
+        https_acceptor_ = std::make_unique<asio::ip::tcp::acceptor>(io_, asio::ip::tcp::endpoint(tcp::v4(), cfg_.server.https_port));
     }
 }
 
@@ -227,10 +227,10 @@ void Server::init_ssl_context()
         asio::ssl::context::no_sslv3 |
         asio::ssl::context::single_dh_use);
 
-    if (!cfg_.srv_cert_path.empty())
-        ssl_context_.use_certificate_chain_file(cfg_.srv_cert_path);
-    if (!cfg_.srv_private_key_path.empty())
-        ssl_context_.use_private_key_file(cfg_.srv_private_key_path, asio::ssl::context::pem);
+    if (!cfg_.tls.certificate.empty())
+        ssl_context_.use_certificate_chain_file(cfg_.tls.certificate);
+    if (!cfg_.tls.private_key.empty())
+        ssl_context_.use_private_key_file(cfg_.tls.private_key, asio::ssl::context::pem);
 
     SSL_CTX_set_info_callback(ssl_context_.native_handle(), ssl_info_callback);
 }
