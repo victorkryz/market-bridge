@@ -45,19 +45,21 @@ class HTTPSession : public Session,
     };
 
     class OutgoingSession : public Session,
+                            public SessionBase<OutgoingSession>,
                             public std::enable_shared_from_this<OutgoingSession>
     {
     public:
         OutgoingSession(std::shared_ptr<HTTPSession> outer_session)
             : outer_session_(outer_session), context_(outer_session->get_context()),
-              resolver_(context_.io), stream_(context_.io, context_.tls_context) {}
+              resolver_(context_.io), stream_(context_.io, context_.tls_context),
+              SessionBase<OutgoingSession>(outer_session->get_id()) {}
         ~OutgoingSession();
 
         void start() override;
         void stop() override;
         uint64_t get_id() override
         {
-            return context_.session_id;
+            return this->get_session_id();
         }
 
     protected:
@@ -83,7 +85,6 @@ class HTTPSession : public Session,
         std::array<char, buffer_size> buffer_;
         std::stringstream response_;
         std::string http_request_;
-        std::atomic<bool> stopped_ = false;
     };
 
 public:

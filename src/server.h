@@ -38,7 +38,7 @@ private:
     void on_ssl_handshake_done(asio::ssl::stream<asio::ip::tcp::socket>&& stream);
     void stop_sessions();
     void close_acceptors();
-    void register_session(std::shared_ptr<Session> session);
+    bool register_session(std::shared_ptr<Session> session);
 
 private:
     ServerRunningMode running_mode_;
