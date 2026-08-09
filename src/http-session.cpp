@@ -151,17 +151,17 @@ void HTTPSession<T>::on_header_timeout(const asio::error_code& ec)
     if (!this->request_stop())
         return;
 
-    static constexpr std::string_view response_body = "Request Timeout";
+    static constexpr std::string_view response_reason = "Request Timeout";
 
-    response_ = std::move(generate_error_response(HTTPResponseCodes::RequestTimeout,
-                                                  response_body, std::string(response_body)));
+    response_ = generate_http_response(HTTPResponseCodes::RequestTimeout,
+                                                  response_reason, "").to_string();
     auto buff = asio::buffer(response_);
 
     auto self = this->shared_from_this();
     asio::async_write(http_stream_, buff,
                       asio::bind_executor(
                           strand_,
-                          [self, this, response = response_body](const asio::error_code& ec, std::size_t)
+                          [self, this, response = response_reason](const asio::error_code& ec, std::size_t)
                           {
                               if (check_ec(ec, __func__))
                               {
@@ -260,17 +260,17 @@ void HTTPSession<T>::on_outgoing_session_failed(const asio::error_code& ec)
     gl_logger->info("HTTPSession id: {}: OutgoingSession failed, reason: {}, error code: {}",
                     this->get_session_id(), ec.message(), ec.value());
 
-    static constexpr std::string_view response_body = "Bad Gateway";
+    static constexpr std::string_view response_reason = "Bad Gateway";
 
-    response_ = std::move(generate_error_response(HTTPResponseCodes::BadGateway,
-                                                  response_body, std::string(response_body)));
+    response_ = generate_http_response(HTTPResponseCodes::BadGateway,
+                                                 response_reason, "").to_string();
     auto buff = asio::buffer(response_);
 
     auto self = this->shared_from_this();
     asio::async_write(http_stream_, buff,
                       asio::bind_executor(
                           strand_,
-                          [self, this, response = response_body](const asio::error_code& ec, std::size_t)
+                          [self, this, response = response_reason](const asio::error_code& ec, std::size_t)
                           {
                               if (check_ec(ec, __func__))
                               {
