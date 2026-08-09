@@ -3,6 +3,7 @@
 #include <asio.hpp>
 #include <map>
 #include <string>
+#include <string_view>
 
 enum class HTTPResponseCodes : long
 {
@@ -14,7 +15,20 @@ enum class HTTPResponseCodes : long
     Forbidden = 403,
     NotFound = 404,
     RequestTimeout = 408,
+    TooManyRequests = 429,
     BadGateway = 502
+};
+
+enum class HTTPResponseConnection 
+{
+    Close = 0,
+    KeepAlive = 1
+};
+
+enum class HTTPResponseContentType
+{
+    TextPlain = 0,
+    ApplicationJson = 1
 };
 
 inline constexpr auto http_request_headers_delimiter = "\r\n\r\n";
@@ -72,7 +86,10 @@ struct HttpResponse
         {
             oss << kv.first << ": " << kv.second << rn;
         }
-        oss << "Content-Length: " << body.size() << rn;
+
+        if (headers.find("Content-Length") == headers.end())
+            oss << "Content-Length: " << body.size() << rn;
+
         oss << rn;
         oss << body;
         return oss.str();
@@ -126,15 +143,32 @@ inline HttpRequest parse_request(const std::string& raw)
     return req;
 }
 
-inline std::string generate_error_response(HTTPResponseCodes status_code, const std::string_view& reason, 
-                                           const std::string& body)
+inline HttpResponse generate_http_response(HTTPResponseCodes status_code, 
+                                           std::string_view reason, 
+                                           const std::string& body,
+                                           HTTPResponseContentType content_type = HTTPResponseContentType::TextPlain,
+                                           HTTPResponseConnection connection = HTTPResponseConnection::Close)
 {
     HttpResponse response;
     response.status_code = static_cast<int>(status_code);
     response.reason = reason;
-    response.body = body;
-    response.headers["Content-Type"] = "text/plain";
-    response.headers["Connection"] = "close";
-    return response.to_string();
+
+    if (!body.empty())
+    {
+        response.body = body;
+        response.headers["Content-Type"] = (content_type == HTTPResponseContentType::ApplicationJson) ? 
+                                            "application/json" : "text/plain";
+        response.headers["Content-Length"] = std::to_string(response.body.size());
+    }
+    else
+    {
+        response.body.clear();
+        response.headers["Content-Length"] = "0";
+    }
+
+    if (connection == HTTPResponseConnection::Close)
+        response.headers["Connection"] = "close";
+
+    return response;
 }   
 

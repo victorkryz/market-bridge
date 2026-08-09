@@ -157,10 +157,10 @@ awaitable<void> HTTPSession<T>::on_header_timeout(asio::error_code ec)
     if (!this->request_stop())
         co_return;
 
-    static constexpr std::string_view response_body = "Request Timeout";
+    static constexpr std::string_view response_reason = "Request Timeout";
 
-    response_ = std::move(generate_error_response(HTTPResponseCodes::RequestTimeout,
-                                                  response_body, std::string(response_body)));
+    response_ = generate_http_response(HTTPResponseCodes::RequestTimeout,
+                                                  response_reason, "").to_string();
     auto buff = asio::buffer(response_);
 
     auto self = this->shared_from_this();
