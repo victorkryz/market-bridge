@@ -1,5 +1,7 @@
 #pragma once
 
+#include <optional>
+
 #include <asio.hpp>
 #include <asio/io_context.hpp>
 #include <asio/ip/tcp.hpp>
@@ -30,7 +32,7 @@ private:
     void launch_http_session(T&& stream);
     void dispatch_http_request(asio::ip::tcp::socket socket);
     void init_acceptors();
-    void init_ssl_context();
+    bool init_ssl_context();
     void install_listeners();
     void uninstall_listeners();
     void install_signals_handler();
@@ -46,13 +48,13 @@ private:
     ServerRunningMode running_mode_;
     asio::io_context io_;
     asio::ssl::context ssl_context_;
-    std::once_flag ssl_context_init_flag_;
+    std::optional<std::once_flag> ssl_context_init_flag_{std::in_place};
     std::unique_ptr<asio::ip::tcp::acceptor> http_acceptor_;
     std::unique_ptr<asio::ip::tcp::acceptor> https_acceptor_;
     std::shared_ptr<RateLimiter> rate_limiter_;
     asio::signal_set signals_;
     std::atomic<bool> shutdown_pending_ = false;
     std::vector<std::weak_ptr<Session>> sessions_;
-    std::mutex session_mtx_;
+    std::mutex session_mtx_, handshake_mtx_;
     const Config& cfg_;
 };

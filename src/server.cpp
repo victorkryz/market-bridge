@@ -145,18 +145,29 @@ void Server::dispatch_http_request(asio::ip::tcp::socket socket)
 
 void Server::ssl_handshake(asio::ip::tcp::socket&& socket)
 {
-    std::call_once(ssl_context_init_flag_, [this]
-                   { init_ssl_context(); });
+    std::lock_guard<std::mutex> lg(handshake_mtx_);
 
-    asio::ssl::stream<tcp::socket> ssl_stream(std::move(socket), ssl_context_);
-    auto session = std::make_shared<HandshakeSession>(std::move(ssl_stream),
-                                                      generate_session_id(),
-                                                      [this](asio::ssl::stream<tcp::socket> s)
-                                                      {
-                                                          on_ssl_handshake_done(std::move(s));
-                                                      });
-    if (register_session(session))
-        session->start();
+    bool ssl_context_initialized = true;
+    std::call_once(*ssl_context_init_flag_, [this, &ssl_context_initialized]
+                   { ssl_context_initialized = init_ssl_context(); });
+
+    if (!ssl_context_initialized)
+    {
+        ssl_context_init_flag_.emplace();
+        gl_logger->error("Cannot perform SSL handshake");
+    }
+    else
+    {
+        asio::ssl::stream<tcp::socket> ssl_stream(std::move(socket), ssl_context_);
+        auto session = std::make_shared<HandshakeSession>(std::move(ssl_stream),
+                                                        generate_session_id(),
+                                                        [this](asio::ssl::stream<tcp::socket> s)
+                                                        {
+                                                            on_ssl_handshake_done(std::move(s));
+                                                        });
+        if (register_session(session))
+            session->start();
+    }
 }
 
 void Server::on_ssl_handshake_done(asio::ssl::stream<tcp::socket>&& stream)
@@ -206,7 +217,7 @@ void Server::init_rate_limiter()
 {
     if (cfg_.throttling.enabled)
     {
-        gl_logger->trace("Rate limiter enabled: {} requests/sec, burst size: {}", 
+        gl_logger->trace("Rate limiter enabled: {} requests/sec, burst size: {}",
                          cfg_.throttling.requests_per_second, cfg_.throttling.burst_size);
 
         rate_limiter_ =
@@ -217,7 +228,8 @@ void Server::init_rate_limiter()
     {
         gl_logger->trace("Rate limiter disabled");
 
-        struct UnlimitedRateLimiter : public RateLimiter {
+        struct UnlimitedRateLimiter : public RateLimiter
+        {
             bool allow() override { return true; }
         };
 
@@ -246,20 +258,31 @@ void Server::uninstall_listeners()
         https_acceptor_->close();
 }
 
-void Server::init_ssl_context()
+bool Server::init_ssl_context()
 {
-    ssl_context_.set_options(
-        asio::ssl::context::default_workarounds |
-        asio::ssl::context::no_sslv2 |
-        asio::ssl::context::no_sslv3 |
-        asio::ssl::context::single_dh_use);
+    bool result(true);
 
-    if (!cfg_.tls.certificate.empty())
-        ssl_context_.use_certificate_chain_file(cfg_.tls.certificate);
-    if (!cfg_.tls.private_key.empty())
-        ssl_context_.use_private_key_file(cfg_.tls.private_key, asio::ssl::context::pem);
+    try
+    {
+        ssl_context_.set_options(
+            asio::ssl::context::default_workarounds |
+            asio::ssl::context::no_sslv2 |
+            asio::ssl::context::no_sslv3 |
+            asio::ssl::context::single_dh_use);
 
-    SSL_CTX_set_info_callback(ssl_context_.native_handle(), ssl_info_callback);
+        if (!cfg_.tls.certificate.empty())
+            ssl_context_.use_certificate_chain_file(cfg_.tls.certificate);
+        if (!cfg_.tls.private_key.empty())
+            ssl_context_.use_private_key_file(cfg_.tls.private_key, asio::ssl::context::pem);
+
+        SSL_CTX_set_info_callback(ssl_context_.native_handle(), ssl_info_callback);
+    }
+    catch (const asio::system_error& e)
+    {
+        gl_logger->critical("Failed to initialize SSL context: {}", e.what());
+        result = false;
+    }
+    return result;
 }
 
 bool Server::register_session(std::shared_ptr<Session> session)
