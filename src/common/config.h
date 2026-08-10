@@ -14,6 +14,8 @@ enum class ServerRunningMode
 
 struct Config
 {
+    std::string config_path;
+
     struct Server
     {
         uint16_t http_port = DEFAULT_HTTP_PORT;
@@ -42,5 +44,9 @@ struct Config
         spdlog::level::level_enum level = spdlog::level::level_enum::info;
     } logging;
 
-    std::string config_path;
+    struct Throttling {
+        bool enabled = false;
+        uint32_t requests_per_second = 20;
+        uint32_t burst_size = 40;
+    } throttling;
 };

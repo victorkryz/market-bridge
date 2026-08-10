@@ -17,5 +17,10 @@
   "logging": {
     "output": "console",
     "level": "info"
+  },
+  "throttling": {
+    "enabled": false,
+    "requests_per_second": 20,
+    "burst_size": 40
   }
 }

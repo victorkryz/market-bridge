@@ -13,6 +13,7 @@
 
 #include "common/config.h"
 #include "common/session.h"
+#include "common/rate-limiter.h"
 #include "utils/session-helper.h"
 
 using asio::ip::tcp;
@@ -88,7 +89,8 @@ class HTTPSession : public Session,
     };
 
 public:
-    HTTPSession(const Config& cfg, asio::io_context& io_, T&& socket, uint64_t id);
+    HTTPSession(const Config& cfg, asio::io_context& io_, T&& socket, 
+                uint64_t id, std::shared_ptr<RateLimiter> rate_limiter);
     ~HTTPSession() override;
 
     void start() override;
@@ -109,6 +111,7 @@ protected:
     void on_header_timeout(const asio::error_code& ec);
     void on_write(const asio::error_code& ec, std::size_t n);
     void on_request(HttpRequest request);
+    void on_request_disallow();
     void on_health_request(HttpRequest request);
     void on_outgoing_session_completed(std::string response);
     void on_outgoing_session_failed(const asio::error_code& ec);
@@ -129,6 +132,7 @@ private:
     asio::ssl::context tls_context_;
     std::string response_;
     std::weak_ptr<OutgoingSession> outgoing_session_;
+    std::shared_ptr<RateLimiter> rate_limiter_;
     std::once_flag socket_shutdown_flag_;
     UpstreamInfo upstream_info_;
 };

@@ -59,6 +59,15 @@ inline std::pair<int, bool> process_arguments(int argc, char* argv[],
                               ("a, allow-https-over-http-port", "allow HTTPS requests over HTTP port",
                               cxxopts::value<bool>()->implicit_value("true"))
 
+                              ("throttling-enabled", "enable request throttling",
+                              cxxopts::value<bool>()->implicit_value("true"))
+
+                              ("throttling-requests-per-second", "specify throttling requests per second (default: 20)",
+                              cxxopts::value<decltype(cfg.throttling.requests_per_second)>())
+
+                              ("throttling-burst-size", "specify throttling burst size (default: 40)",
+                              cxxopts::value<decltype(cfg.throttling.burst_size)>())
+
                               ("config", "load configuration from a JSON file",
                               cxxopts::value<std::string>(cfg.config_path))
 
@@ -131,6 +140,20 @@ inline void merge_parsed_arguments(const cxxopts::ParseResult& parsed_args, Conf
     if (parsed_args.count("allow-https-over-http-port"))
         target_cfg.server.allow_https_over_http_port =
             parsed_args["allow-https-over-http-port"].as<bool>();
+
+    if (parsed_args.count("throttling-enabled"))
+        target_cfg.throttling.enabled =
+            parsed_args["throttling-enabled"].as<bool>();
+
+    if (parsed_args.count("throttling-requests-per-second"))
+        target_cfg.throttling.requests_per_second =
+            parsed_args["throttling-requests-per-second"]
+                .as<decltype(target_cfg.throttling.requests_per_second)>();
+
+    if (parsed_args.count("throttling-burst-size"))
+        target_cfg.throttling.burst_size =
+            parsed_args["throttling-burst-size"]
+                .as<decltype(target_cfg.throttling.burst_size)>();
 
     if (parsed_args.count("log-level"))
         target_cfg.logging.level = spdlog::level::from_str(

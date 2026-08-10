@@ -8,6 +8,7 @@
 #include <vector>
 
 #include "server.h"
+#include "tocken-bucket.h"
 #include "common/ec-handler.h"
 #include "http-session.h"
 #include "handshake_session.h"
@@ -31,9 +32,11 @@ int Server::run()
 
     init_acceptors();
     install_signals_handler();
+    init_rate_limiter();
     install_listeners();
 
-    const auto num_threads = std::clamp<size_t>(cfg_.server.worker_threads, 1, std::thread::hardware_concurrency());
+    const auto num_threads = std::clamp<size_t>(cfg_.server.worker_threads, 1,
+                                                std::thread::hardware_concurrency());
 
     gl_logger->info("Server running with {} threads", num_threads);
 
@@ -93,7 +96,6 @@ void Server::listener(asio::ip::tcp::acceptor& acceptor,
         });
 }
 
-
 void Server::dispatch_http_request(asio::ip::tcp::socket socket)
 {
     using std::literals::string_view_literals::operator""sv;
@@ -116,9 +118,9 @@ void Server::dispatch_http_request(asio::ip::tcp::socket socket)
 
     auto protocol_recognition_helper = std::make_shared<ProtocolRecognitionHelper>(std::move(socket));
     protocol_recognition_helper->socket.async_receive(
-            asio::buffer(protocol_recognition_helper->buff), 
-            asio::socket_base::message_peek,
-            [this, protocol_recognition_helper](const asio::error_code& ec, size_t n)
+        asio::buffer(protocol_recognition_helper->buff),
+        asio::socket_base::message_peek,
+        [this, protocol_recognition_helper](const asio::error_code& ec, size_t n)
         {
             if (!check_ec(ec, "protocol_recognition_handler"sv))
             {
@@ -165,9 +167,11 @@ void Server::on_ssl_handshake_done(asio::ssl::stream<tcp::socket>&& stream)
 template <typename T>
 inline void Server::launch_http_session(T&& channel)
 {
-    std::shared_ptr<HTTPSession<T>> session = std::make_shared<HTTPSession<T>>(cfg_, io_,
-                                                                               std::move(channel),
-                                                                               generate_session_id());
+    std::shared_ptr<HTTPSession<T>> session =
+        std::make_shared<HTTPSession<T>>(cfg_, io_,
+                                         std::move(channel),
+                                         generate_session_id(),
+                                         rate_limiter_);
     if (register_session(session))
         session->start();
 }
@@ -195,6 +199,29 @@ void Server::init_acceptors()
     if (cfg_.server.https_port != cfg_.server.http_port)
     {
         https_acceptor_ = std::make_unique<asio::ip::tcp::acceptor>(io_, asio::ip::tcp::endpoint(tcp::v4(), cfg_.server.https_port));
+    }
+}
+
+void Server::init_rate_limiter()
+{
+    if (cfg_.throttling.enabled)
+    {
+        gl_logger->trace("Rate limiter enabled: {} requests/sec, burst size: {}", 
+                         cfg_.throttling.requests_per_second, cfg_.throttling.burst_size);
+
+        rate_limiter_ =
+            std::make_shared<TokenBucket>(cfg_.throttling.requests_per_second,
+                                          cfg_.throttling.burst_size);
+    }
+    else
+    {
+        gl_logger->trace("Rate limiter disabled");
+
+        struct UnlimitedRateLimiter : public RateLimiter {
+            bool allow() override { return true; }
+        };
+
+        rate_limiter_ = std::make_shared<UnlimitedRateLimiter>();
     }
 }
 

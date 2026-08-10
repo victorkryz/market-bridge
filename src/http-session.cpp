@@ -9,16 +9,19 @@
 #include "utils/session-helper.h"
 #include "logs/logger.h"
 
-using namespace std::literals;
+using std::literals::string_view_literals::operator""sv;
 
 template <typename T>
 HTTPSession<T>::HTTPSession(const Config& cfg,
                             asio::io_context& io,
-                            T&& socket, uint64_t id) : SessionBase<HTTPSession<T>>(id),
+                            T&& socket, uint64_t id,
+                            std::shared_ptr<RateLimiter> rate_limiter) :
+                                                 SessionBase<HTTPSession<T>>(id),
                                                        io_(io), http_stream_(std::move(socket)),
                                                        strand_(asio::make_strand(http_stream_.get_executor())),
                                                        tls_context_(asio::ssl::context::tls_client),
-                                                       upstream_info_{cfg.upstream.host, cfg.upstream.port, cfg.upstream.ignore_certificate_verification}
+                                                       upstream_info_{cfg.upstream.host, cfg.upstream.port, cfg.upstream.ignore_certificate_verification},
+                                                       rate_limiter_(rate_limiter)
 
 {
 
@@ -182,6 +185,13 @@ void HTTPSession<T>::on_request(HttpRequest request)
 
     gl_logger->trace("Request: {}", request.to_string());
 
+    if (!rate_limiter_->allow())
+    {
+        on_request_disallow();
+        gl_logger->trace("Request rejected!");
+        return;
+    }
+
     if (request.target == "/health")
     {
         on_health_request(std::move(request));
@@ -230,6 +240,44 @@ void HTTPSession<T>::on_health_request(HttpRequest request)
                               }
                           }));
 }
+
+template <typename T>
+void HTTPSession<T>::on_request_disallow()
+{
+    static constexpr std::string_view response_reason = "Too Many Requests";
+
+    constexpr std::string_view response_body_template = R"(
+                                {{
+                                    "status": "{}",
+                                    "error": "{}"
+                                }})"sv;
+
+    HttpResponse http_response = generate_http_response(HTTPResponseCodes::TooManyRequests,
+                                                        response_reason, 
+                                                        fmt::format(response_body_template, 
+                                                            static_cast<int>(HTTPResponseCodes::TooManyRequests), 
+                                                            response_reason),
+                                                        HTTPResponseContentType::ApplicationJson,
+                                                        HTTPResponseConnection::Close);
+    http_response.headers["Retry-After"] = "1"; // advisory: retry after 1 second
+
+    response_ = http_response.to_string();   
+    auto buff = asio::buffer(response_);
+
+    auto self = this->shared_from_this();
+    asio::async_write(http_stream_, buff,
+                      asio::bind_executor(
+                          strand_,
+                          [self, this, response = http_response.body](const asio::error_code& ec, std::size_t)
+                          {
+                              if (check_ec(ec, __func__))
+                              {
+                                  gl_logger->trace("HTTPSession id: {}, response sent: {}",
+                                                   this->get_session_id(), response);
+                              }
+                          }));
+}
+
 
 template <typename T>
 void HTTPSession<T>::on_outgoing_session_completed(std::string response)

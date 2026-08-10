@@ -8,6 +8,7 @@
 
 #include "common/config.h"
 #include "common/session.h"
+#include "common/rate-limiter.h"
 
 class Server
 {
@@ -33,6 +34,7 @@ private:
     void install_listeners();
     void uninstall_listeners();
     void install_signals_handler();
+    void init_rate_limiter();
     void uninstall_signals_handler();
     void ssl_handshake(asio::ip::tcp::socket&& socket);
     void on_ssl_handshake_done(asio::ssl::stream<asio::ip::tcp::socket>&& stream);
@@ -47,6 +49,7 @@ private:
     std::once_flag ssl_context_init_flag_;
     std::unique_ptr<asio::ip::tcp::acceptor> http_acceptor_;
     std::unique_ptr<asio::ip::tcp::acceptor> https_acceptor_;
+    std::shared_ptr<RateLimiter> rate_limiter_;
     asio::signal_set signals_;
     std::atomic<bool> shutdown_pending_ = false;
     std::vector<std::weak_ptr<Session>> sessions_;

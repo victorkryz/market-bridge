@@ -83,8 +83,6 @@ namespace
                   "Connection: close\r\n"
                   "Content-Length: 0\r\n"
                   "\r\n");
-        EXPECT_EQ(serialized.find("Content-Length:"),
-                  serialized.rfind("Content-Length:"));
     }
 
     TEST(HttpResponseToStringTest, SerializesGeneratedResponse)

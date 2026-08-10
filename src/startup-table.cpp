@@ -56,7 +56,7 @@ std::string make_startup_table(const Config& cfg)
 {
     using Row = std::pair<std::string, std::string>;
 
-    const std::vector<Row> rows{
+    std::vector<Row> rows{
         {"Version", app_version},
         {"HTTP listener", endpoint("localhost", cfg.server.http_port)},
         {"HTTPS listener", endpoint("localhost", cfg.server.https_port)},
@@ -67,9 +67,16 @@ std::string make_startup_table(const Config& cfg)
         {"TLS certificate", cfg.tls.certificate},
         {"TLS private key", cfg.tls.private_key},
         {"Ignore upstream cert", to_string(cfg.upstream.ignore_certificate_verification)},
-        {"Allow HTTPS over HTTP port", to_string(cfg.server.allow_https_over_http_port)}
+        {"Allow HTTPS over HTTP port", to_string(cfg.server.allow_https_over_http_port)},
+        {"Throttling enabled", to_string(cfg.throttling.enabled)},
     };
 
+    if (cfg.throttling.enabled)
+    {
+        rows.emplace_back("Throttling requests/second", std::to_string(cfg.throttling.requests_per_second));
+        rows.emplace_back("Throttling burst size", std::to_string(cfg.throttling.burst_size));
+    }
+    
     constexpr std::size_t title_padding = 2;
     std::size_t key_width = 0;
     std::size_t value_width = 0;
