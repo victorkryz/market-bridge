@@ -15,6 +15,7 @@
 
 #include "common/config.h"
 #include "common/session.h"
+#include "common/rate-limiter.h"
 #include "utils/session-helper.h"
 
 using asio::awaitable;
@@ -43,6 +44,7 @@ private:
     void launch_http_session(T&& stream);
     void init_acceptors();
     bool init_ssl_context();
+    void init_rate_limiter();
     void install_listeners();
     void uninstall_listeners();
     void install_signals_handler();
@@ -60,6 +62,7 @@ private:
     std::optional<std::once_flag> ssl_context_init_flag_{std::in_place};
     std::unique_ptr<asio::ip::tcp::acceptor> http_acceptor_;
     std::unique_ptr<asio::ip::tcp::acceptor> https_acceptor_;
+    std::shared_ptr<RateLimiter> rate_limiter_;
     asio::signal_set signals_;
     std::atomic<bool> shutdown_pending_ = false;
     std::vector<std::weak_ptr<Session>> sessions_;

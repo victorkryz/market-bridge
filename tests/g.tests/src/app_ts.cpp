@@ -35,6 +35,11 @@ constexpr std::string_view default_json_config = R"({
   "logging": {
     "output": "console",
     "level": "info"
+  },
+  "throttling": {
+    "enabled": false,
+    "requests_per_second": 20,
+    "burst_size": 40
   }
 })";
 
@@ -298,6 +303,21 @@ TEST_F(CommandLineTS, AllowHttpsOverHttpPortArgTest)
     EXPECT_FALSE(gl_show_usage_called);
 }
 
+TEST_F(CommandLineTS, ThrottlingArgsTest)
+{
+    set_arguments({"", "--throttling-enabled", "--throttling-requests-per-second", "75",
+                   "--throttling-burst-size", "125"});
+
+    const auto [exit_code, usage_requested] =
+        process_arguments(in_args_.size(), in_args_.data(), out_args_);
+
+    EXPECT_EQ(exit_code, 0);
+    EXPECT_TRUE(out_args_.throttling.enabled);
+    EXPECT_EQ(out_args_.throttling.requests_per_second, 75u);
+    EXPECT_EQ(out_args_.throttling.burst_size, 125u);
+    EXPECT_FALSE(usage_requested);
+}
+
 
 TEST_F(CommandLineTS, UpstreamHostArgTest)
 {
@@ -553,4 +573,51 @@ TEST_F(CommandLineTS, CustomJsonConfigTest2)
 
     EXPECT_FALSE(usage_requested);
     EXPECT_FALSE(gl_show_usage_called);
+}
+
+TEST_F(CommandLineTS, ThrottlingJsonConfigTest)
+{
+    set_arguments({"", "--config", "fake_config.json"});
+
+    constexpr std::string_view json_config = R"({
+        "throttling": {
+            "enabled": true,
+            "requests_per_second": 60,
+            "burst_size": 90
+        }
+    })";
+
+    LoadFromString cfg_loader(json_config);
+    const auto [exit_code, usage_requested] =
+        process_arguments(in_args_.size(), in_args_.data(), cfg_loader, out_args_);
+
+    EXPECT_EQ(exit_code, 0);
+    EXPECT_TRUE(out_args_.throttling.enabled);
+    EXPECT_EQ(out_args_.throttling.requests_per_second, 60u);
+    EXPECT_EQ(out_args_.throttling.burst_size, 90u);
+    EXPECT_FALSE(usage_requested);
+}
+
+TEST_F(CommandLineTS, ThrottlingCommandLineOverridesJsonTest)
+{
+    set_arguments({"", "--config", "fake_config.json", "--throttling-enabled=false",
+                   "--throttling-burst-size", "100"});
+
+    constexpr std::string_view json_config = R"({
+        "throttling": {
+            "enabled": true,
+            "requests_per_second": 60,
+            "burst_size": 90
+        }
+    })";
+
+    LoadFromString cfg_loader(json_config);
+    const auto [exit_code, usage_requested] =
+        process_arguments(in_args_.size(), in_args_.data(), cfg_loader, out_args_);
+
+    EXPECT_EQ(exit_code, 0);
+    EXPECT_FALSE(out_args_.throttling.enabled);
+    EXPECT_EQ(out_args_.throttling.requests_per_second, 60u);
+    EXPECT_EQ(out_args_.throttling.burst_size, 100u);
+    EXPECT_FALSE(usage_requested);
 }

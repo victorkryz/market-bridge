@@ -4,6 +4,7 @@
 #include <cstdint>
 #include <fstream>
 #include <initializer_list>
+#include <limits>
 #include <stdexcept>
 #include <string>
 #include <string_view>
@@ -20,6 +21,7 @@ namespace
     constexpr auto tls_key = "tls"sv;
     constexpr auto upstream_key = "upstream"sv;
     constexpr auto logging_key = "logging"sv;
+    constexpr auto throttling_key = "throttling"sv;
 
     constexpr auto http_port_key = "http_port"sv;
     constexpr auto https_port_key = "https_port"sv;
@@ -33,6 +35,9 @@ namespace
         "ignore_certificate_verification"sv;
     constexpr auto output_key = "output"sv;
     constexpr auto level_key = "level"sv;
+    constexpr auto enabled_key = "enabled"sv;
+    constexpr auto requests_per_second_key = "requests_per_second"sv;
+    constexpr auto burst_size_key = "burst_size"sv;
 
     constexpr auto configuration_root_name = "configuration root"sv;
     constexpr auto root_name = "root"sv;
@@ -49,6 +54,10 @@ namespace
         "upstream.ignore_certificate_verification"sv;
     constexpr auto logging_output_name = "logging.output"sv;
     constexpr auto logging_level_name = "logging.level"sv;
+    constexpr auto throttling_enabled_name = "throttling.enabled"sv;
+    constexpr auto throttling_requests_per_second_name =
+        "throttling.requests_per_second"sv;
+    constexpr auto throttling_burst_size_name = "throttling.burst_size"sv;
 
     constexpr auto persistent_value = "persist"sv;
     constexpr auto single_request_value = "single-request"sv;
@@ -115,6 +124,30 @@ namespace
         return value.get<bool>();
     }
 
+    uint32_t read_uint32(const json& value, std::string_view name)
+    {
+        if (!value.is_number_unsigned() && !value.is_number_integer())
+            throw std::runtime_error(std::string(name) + " expected be an integer");
+
+        if (value.is_number_unsigned())
+        {
+            const auto number = value.get<std::uint64_t>();
+            if (number <= std::numeric_limits<uint32_t>::max())
+                return static_cast<uint32_t>(number);
+        }
+        else
+        {
+            const auto number = value.get<std::int64_t>();
+            if (number >= 0 &&
+                static_cast<std::uint64_t>(number) <= std::numeric_limits<uint32_t>::max())
+                return static_cast<uint32_t>(number);
+        }
+
+        throw std::runtime_error(std::string(name) +
+                                 " expected be between 0 and " +
+                                 std::to_string(std::numeric_limits<uint32_t>::max()));
+    }
+
     ServerRunningMode read_run_mode(const json& value)
     {
         const auto mode = read_string(value, server_run_mode_name);
@@ -170,7 +203,7 @@ namespace
     void merge_json_config(const json& root, Config& config)
     {
         obtain_object(root, configuration_root_name);
-        validate_keys(root, {server_key, tls_key, upstream_key, logging_key},
+        validate_keys(root, {server_key, tls_key, upstream_key, logging_key, throttling_key},
                       root_name);
 
         if (const auto it = root.find(server_key); it != root.end())
@@ -229,6 +262,25 @@ namespace
                 config.logging.output = read_log_output(it->at(output_key));
             if (it->contains(level_key))
                 config.logging.level = read_log_level(it->at(level_key));
+        }
+
+        if (const auto it = root.find(throttling_key); it != root.end())
+        {
+            obtain_object(*it, throttling_key);
+            validate_keys(*it,
+                          {enabled_key, requests_per_second_key, burst_size_key},
+                          throttling_key);
+            if (it->contains(enabled_key))
+                config.throttling.enabled =
+                    read_bool(it->at(enabled_key), throttling_enabled_name);
+            if (it->contains(requests_per_second_key))
+                config.throttling.requests_per_second =
+                    read_uint32(it->at(requests_per_second_key),
+                                throttling_requests_per_second_name);
+            if (it->contains(burst_size_key))
+                config.throttling.burst_size =
+                    read_uint32(it->at(burst_size_key),
+                                throttling_burst_size_name);
         }
     }
 

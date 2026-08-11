@@ -9,6 +9,7 @@
 #include <sstream>
 
 #include "server.h"
+#include "tocken-bucket.h"
 #include "common/ec-handler.h"
 #include "http-session.h"
 #include "handshake_session.h"
@@ -32,6 +33,7 @@ int Server::run()
 
     install_signals_handler();
     init_acceptors();
+    init_rate_limiter();
     install_listeners();
 
     const auto num_threads = std::clamp<size_t>(cfg_.server.worker_threads, 
@@ -169,9 +171,11 @@ void Server::on_ssl_handshake_done(asio::ssl::stream<tcp::socket>&& stream)
 template <session::helper::HttpStream T>
 inline void Server::launch_http_session(T&& channel)
 {
-    std::shared_ptr<HTTPSession<T>> session = std::make_shared<HTTPSession<T>>(cfg_, io_,
-                                                                               std::move(channel),
-                                                                               generate_session_id());
+    std::shared_ptr<HTTPSession<T>> session = 
+                    std::make_shared<HTTPSession<T>>(cfg_, io_,
+                                                    std::move(channel),
+                                                    generate_session_id(),
+                                                    rate_limiter_);
     if (register_session(session))
         session->start();
 }
@@ -182,6 +186,30 @@ void Server::init_acceptors()
     if (cfg_.server.https_port != cfg_.server.http_port)
     {
         https_acceptor_ = std::make_unique<asio::ip::tcp::acceptor>(io_, asio::ip::tcp::endpoint(tcp::v4(), cfg_.server.https_port));
+    }
+}
+
+void Server::init_rate_limiter()
+{
+    if (cfg_.throttling.enabled)
+    {
+        gl_logger->trace("Rate limiter enabled: {} requests/sec, burst size: {}",
+                         cfg_.throttling.requests_per_second, cfg_.throttling.burst_size);
+
+        rate_limiter_ =
+            std::make_shared<TokenBucket>(cfg_.throttling.requests_per_second,
+                                          cfg_.throttling.burst_size);
+    }
+    else
+    {
+        gl_logger->trace("Rate limiter disabled");
+
+        struct UnlimitedRateLimiter : public RateLimiter
+        {
+            bool allow() override { return true; }
+        };
+
+        rate_limiter_ = std::make_shared<UnlimitedRateLimiter>();
     }
 }
 
