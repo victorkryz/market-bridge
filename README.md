@@ -19,7 +19,7 @@ returns the responses without modification.
 
 -  The proxy listens on localhost:8080 (by default)
 -  Accepts and parses incoming HTTP(S) requests
--  Parses the API request
+-  Parsers the API request
 -  Establishes outgoing connection
 -  Forwards client's HTTP payload to api.binance.com 
    (the original request's part is preserved)
@@ -62,28 +62,23 @@ or HTTPS calls if certificates are provided, at least self-signed ones
 
 ### Command line arguments:
 
-```
--h, --help             print usage
--p, --http-port arg    specify http port (default: 8080)
--s, --https-port arg   specify port (default: 8443)
--o, --log-output arg   specify logging output (file, console) (default: 
-                        console)
--r, --run-mode arg     specify running mode (persist, single-request) 
-                        (default: persist)
--l, --log-level arg    specify log level (error, warning, trace, debug, 
-                        critical, off) (default: info)
--c, --cert-path arg    specify https server certificate path (default: 
-                        cert/server.crt)
--k, --private-key arg  specify https server private key path (default: 
-                        cert/server.key)
--i, --ignore-cert-verification  ignore SSL certificate verification for 
-                                outgoing requests
--H, --upstream-host arg  specify upstream host for proxying outgoing 
-                         requests (default: api.binance.com)
--P, --upstream-port arg  specify upstream port for proxying outgoing 
-                         requests (default: 443)
-    --config arg         load configuration from a JSON file
-```
+Option | Description
+--- | ---
+-h, --help | print usage
+-p, --http-port arg | specify http port (default: 8080)
+-s, --https-port arg | specify port (default: 8443)
+-o, --log-output arg | specify logging output (file, console) (default: console)
+-r, --run-mode arg | specify running mode (persist, single-request) (default: persist)
+-l, --log-level arg | specify log level (error, warning, trace, debug, critical, off) (default: info)
+-c, --cert-path arg | specify https server certificate path (default: cert/server.crt)
+-k, --private-key arg | specify https server private key path (default: cert/server.key)
+-i, --ignore-cert-verification | ignore SSL certificate verification for outgoing requests
+-H, --upstream-host arg | specify upstream host for proxying outgoing requests (default: api.binance.com)
+-P, --upstream-port arg | specify upstream port for proxying outgoing requests (default: 443)
+--throttling-enabled | enable request throttling
+--throttling-requests-per-second arg | specify throttling requests per second (default: 20)
+--throttling-burst-size arg | specify throttling burst size (default: 40)
+--config arg | load configuration from a JSON file
 
 ### JSON configuration:
 
@@ -109,6 +104,11 @@ The JSON configuration file can contain the following values (shown with their d
   "logging": {
     "output": "console",
     "level": "info"
+  },
+  "throttling": {
+    "enabled": false,
+    "requests_per_second": 20,
+    "burst_size": 40
   }
 }
 ```
@@ -152,6 +152,17 @@ To build the project under Linux OS use build.sh script with build type specific
     cmake -S . -B build
     cmake --build  build
 ```
+
+> [!TIP]
+>
+> #### Automated CI/CD Workflows
+>
+> See the GitHub Actions workflows for
+> [Linux](.github/workflows/linux-workflow.yml) and
+> [Windows](.github/workflows/windows-workflow.yml).  
+> They perform automated project build, unit test execution, and integration testing
+> against the WireMock service.
+
 
 #### Branches:
 
