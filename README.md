@@ -1,7 +1,7 @@
 # $\color{MidnightBlue}\textit{\textbf{market-bridge}}$
 
 
-![C++](https://img.shields.io/badge/C++-17/20-purple?logo=C++)
+![C++](https://img.shields.io/badge/C++-17-purple?logo=C++)
 ![asio](https://img.shields.io/badge/asio-1.36.0-lightblue?logo=asio)
 ![cmake](https://img.shields.io/badge/cmake-3.30-lightgray)
 ![gtest](https://img.shields.io/badge/GTest-1.14.0-blueviolet)
@@ -166,9 +166,9 @@ To build the project under Linux OS use build.sh script with build type specific
 
 #### Branches:
 
- - **main** -  C++17 implementation using ASIO asynchronous APIs with lambda handlers (in-progress) 
- - **dev/cpp20** - C++20 implementation using ASIO coroutines (in-progress)
-
+- **main** -  C++20 implementation using ASIO coroutines (in-progress)
+- **dev/cpp17** - C++17 implementation using ASIO asynchronous APIs with lambda handlers (frozen for now)
+ 
 
 
 ### Validation tests
