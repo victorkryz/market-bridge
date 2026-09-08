@@ -167,8 +167,9 @@ To build the project under Linux OS use build.sh script with build type specific
 
 #### Branches:
 
- - **main** -  C++17 implementation using ASIO asynchronous APIs with lambda handlers
- - **dev/cpp20** - C++20 implementation using ASIO coroutines (in-progress)
+ - **main** -  C++20 implementation using ASIO coroutines (in-progress)
+ - **dev/cpp17** - C++17 implementation using ASIO asynchronous APIs with lambda handlers (frozen for now)
+ 
 
 
 ### Validation tests
