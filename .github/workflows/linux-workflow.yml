@@ -76,7 +76,7 @@ jobs:
       run: |
         echo "Waiting for WireMock to be ready..."
         until curl -fsk https://localhost:8443/__admin/ > /dev/null; do
-          sleep 1
+          sleep 1s
         done
         echo "WireMock is ready!"  
 
@@ -96,7 +96,7 @@ jobs:
         echo "Test passed: responses from WireMock and market-bridge are identical"
 
     - name: Pause ...
-      run: sleep 2
+      run: sleep 2s
 
     - name: Run ${{env.APP_NAME}} to test again WireMock (HTTPS protocol)
       working-directory: ${{github.workspace}}/${{env.INSTALL_DIRECTORY}}
